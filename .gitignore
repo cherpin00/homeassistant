@@ -1,0 +1,27 @@
+# HA runtime
+.storage/
+home-assistant_v2.db*
+*.log
+*.log.*
+*.fault
+.ha_run.lock
+HA_VERSION
+deps/
+tts/
+cloud/
+
+# Secrets
+secrets.yaml
+
+# OS junk
+.DS_Store
+
+custom_components/hacs/hacs_frontend/
+
+__pycache__/
+*.pyc
+
+*.db
+
+.HA_VERSION
+

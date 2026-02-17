@@ -1,0 +1,268 @@
+- id: '1770741442986'
+  alias: Notify when front door is unlocked
+  description: ''
+  triggers:
+  - entity_id: lock.assure_2_biometric_deadbolt
+    from: locked
+    to: unlocked
+    trigger: state
+  conditions: []
+  actions:
+  - action: notify.notify
+    metadata: {}
+    data:
+      message: "\U0001F6AA Front door was unlocked"
+      title: Door Unlocked
+  mode: single
+- &id001
+  id: '1771184233131'
+  alias: LLM Vision — Smart Motion Analyzer
+  description: Triggers on person/vehicle/animal detection. Captures N snapshots evenly
+    spaced over a configurable duration, then runs LLM Vision image analysis. Max
+    frames and duration are controlled by input_number helpers.
+  triggers:
+  - entity_id: binary_sensor.living_room_person
+    to: 'on'
+    platform: state
+  - entity_id: binary_sensor.living_room_vehicle
+    to: 'on'
+    platform: state
+  - entity_id: binary_sensor.living_room_animal
+    to: 'on'
+    platform: state
+  actions:
+  - alias: Step A — Capture frames evenly spaced over duration
+    repeat:
+      count: '{{ max_frames }}'
+      sequence:
+      - alias: Save frame snapshot
+        action: camera.snapshot
+        target:
+          entity_id: camera.living_room_fluent_lens_1
+        data:
+          filename: '{{ base_path + event_ts + ''_f'' + (repeat.index | string) +
+            ''.jpg'' }}'
+      - alias: Wait for next frame interval (skip after last frame)
+        if:
+        - condition: template
+          value_template: '{{ repeat.index < max_frames }}'
+        then:
+        - delay:
+            seconds: '{{ frame_interval }}'
+  - alias: Step B1 — Send immediate motion notification
+    action: notify.mobile_app_pixel_8_pro
+    data:
+      title: Motion Detected
+      message: Living Room — analyzing...
+      data:
+        tag: '{{ event_ts }}'
+        group: living-room-camera
+        channel: LLM Vision
+        importance: high
+  - alias: Step B2 — Person Recognition
+    if:
+    - condition: template
+      value_template: '{{ person_recognition_enabled }}'
+    then:
+    - variables:
+        registry_raw: '{{ states(''input_text.person_registry_metadata'') }}'
+    - variables:
+        registry_json: '{{ registry_raw }}'
+        person_ids: '{{ registry_raw.person_ids | list }}'
+        next_person_id: '{{ registry_raw.next_id }}'
+    - action: system_log.write
+      data:
+        message: 'Person recognition: Loaded registry with {{ person_ids | length
+          }} known people'
+        level: info
+    - variables:
+        known_people_prompt: "{% set ns = namespace(people_list=[]) %} {% for person_id
+          in person_ids %}\n  {% set person_data = states('input_text.person_' ~ person_id
+          ~ '_data') | from_json %}\n  {% set label = person_data.user_label if person_data.user_label
+          else person_data.label %}\n  {% set ns.people_list = ns.people_list + [label
+          ~ ' (ID: ' ~ person_id ~ ')'] %}\n{% endfor %} {% if ns.people_list | length
+          > 0 %}\n  Known People:\n  {{ ns.people_list | join('\\n') }}\n{% else %}\n
+          \ No known people yet.\n{% endif %}\n"
+        person_match_prompt: 'You are comparing a person in a new image to known people.
+
+
+          {{ known_people_prompt }}
+
+
+          New Image: [current capture]
+
+
+          Compare the person in the New Image to each Known Person. Consider:
+
+          - Facial features, build, height, clothing style
+
+          - This is the same location and camera
+
+
+          Respond ONLY with ONE of these formats:
+
+          - "MATCH: person_x" (if confident match, where x is the person ID)
+
+          - "NEW" (if this is someone you haven''t seen)
+
+          - "UNCLEAR" (if you can''t see the person clearly)
+
+
+          Include a confidence score 0-100 on the next line.
+
+          '
+    - variables:
+        match_result: "{% if person_ids | length == 0 %}\n  NEW\n{% else %}\n  MATCH:
+          {{ person_ids[0] }}\n{% endif %}\n"
+        match_confidence: 75
+    - if:
+      - condition: template
+        value_template: '{{ match_result.startswith(''MATCH:'') }}'
+      then:
+      - variables:
+          matched_person_id: '{{ match_result.split('':'')[1].strip() }}'
+          person_data: '{{ states(''input_text.person_'' ~ matched_person_id ~ ''_data'')
+            | from_json }}'
+          person_label: '{{ person_data.user_label if person_data.user_label else
+            person_data.label }}'
+          person_id: '{{ matched_person_id }}'
+          is_new_person: false
+      - variables:
+          updated_person_data: "{{\n  person_data | combine({\n    'last_seen': now().isoformat(),\n
+            \   'appearance_count': person_data.appearance_count + 1\n  })\n}}\n"
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.person_{{ person_id }}_data
+        data:
+          value: '{{ updated_person_data | to_json }}'
+      else:
+      - if:
+        - condition: template
+          value_template: '{{ match_result == ''NEW'' }}'
+        then:
+        - variables:
+            new_person_id: '{{ next_person_id }}'
+            person_label: Person {{ next_person_id | upper }}
+            person_id: '{{ new_person_id }}'
+            is_new_person: true
+            new_person_ref_image: '{{ person_base_path }}person_{{ new_person_id }}_ref1.jpg'
+        - variables:
+            new_person_data:
+              id: '{{ new_person_id }}'
+              label: '{{ person_label }}'
+              user_label:
+              reference_images:
+              - '{{ best_frame_path }}'
+              first_seen: '{{ now().isoformat() }}'
+              last_seen: '{{ now().isoformat() }}'
+              appearance_count: 1
+              notes: ''
+        - if:
+          - condition: template
+            value_template: '{{ states(''input_text.person_'' ~ new_person_id ~ ''_data'')
+              != ''unavailable'' }}'
+          then:
+          - action: input_text.set_value
+            target:
+              entity_id: input_text.person_{{ new_person_id }}_data
+            data:
+              value: '{{ new_person_data | to_json }}'
+        - variables:
+            updated_registry: "{{\n  registry_json | combine({\n    'person_ids':
+              person_ids + [new_person_id],\n    'next_id': {'a':'b','b':'c','c':'d','d':'e','e':'f','f':'g','g':'h','h':'i','i':'j','j':'k','k':'l','l':'m','m':'n','n':'o','o':'p','p':'q','q':'r','r':'s','s':'t','t':'u','u':'v','v':'w','w':'x','x':'y','y':'z','z':'aa'}[new_person_id],\n
+              \   'last_updated': now().isoformat()\n  })\n}}\n"
+        - action: input_text.set_value
+          target:
+            entity_id: input_text.person_registry_metadata
+          data:
+            value: '{{ updated_registry | to_json }}'
+        else:
+        - variables:
+            person_label: Unknown Person
+            person_id:
+            is_new_person: false
+        - action: system_log.write
+          data:
+            message: 'Person recognition: Person not clearly visible in frame'
+            level: info
+    else:
+    - variables:
+        person_label:
+        person_id:
+        is_new_person: false
+  - alias: Step C — Run LLM Vision analysis across all captured frames
+    action: llmvision.image_analyzer
+    data:
+      provider: 01KHDH36JH319D6FP251VYXE80
+      image_file: "{% set ns = namespace(files=[]) %} {% for i in range(1, max_frames
+        + 1) %}\n  {% set ns.files = ns.files + [base_path + event_ts + '_f' + (i
+        | string) + '.jpg'] %}\n{% endfor %} {{ ns.files | join('\\n') }}\n"
+      remember: true
+      include_filename: true
+      expose_images: true
+      generate_title: true
+      message: Summarize what is happening in these images. Focus only on moving subjects.
+        Be concise but clear. If nothing happens, say 'No activity observed.'
+    response_variable: llm_result
+  - alias: Step D1 — Persist summary to input_text helper
+    action: input_text.set_value
+    target:
+      entity_id: input_text.llm_last_event
+    data:
+      value: '{{ (llm_result.response_text | default(''No response''))[:255] }}'
+  - alias: Step D2 — Persist title to input_text helper
+    action: input_text.set_value
+    target:
+      entity_id: input_text.llm_last_title
+    data:
+      value: '{{ (llm_result.get(''title'') or trigger_name)[:255] }}'
+  - alias: Step D3 — Persist image path to input_text helper
+    action: input_text.set_value
+    target:
+      entity_id: input_text.llm_last_image
+    data:
+      value: '{{ (llm_result.get(''image'') or (base_path + event_ts + ''_f1.jpg''))[:255]
+        }}'
+  - alias: Step D4 — Create persistent HA UI notification
+    action: persistent_notification.create
+    data:
+      title: '{{ llm_result.get(''title'') or trigger_name }}'
+      message: "**{{ now().strftime('%b %d %Y, %I:%M %p') }}**\n{{ llm_result.response_text
+        | default('No response') }}\n\U0001F4F7 Living Room Camera\n"
+      notification_id: llmvision_{{ event_ts }}
+  - alias: Step E — Update phone notification with AI result
+    action: notify.mobile_app_pixel_8_pro
+    data:
+      title: '{{ llm_result.get(''title'') or trigger_name }}'
+      message: '{{ llm_result.response_text | default(''No response'') }}'
+      data:
+        image: '{{ llm_result.get(''image'') or (base_path + event_ts + ''_f1.jpg'')
+          }}'
+        tag: '{{ event_ts }}'
+        group: living-room-camera
+        channel: LLM Vision
+        importance: high
+        clickAction: lovelace/
+  mode: single
+  variables:
+    event_ts: '{{ now().strftime(''%Y%m%d_%H%M%S'') }}'
+    trigger_name: '{{ trigger.to_state.name if trigger.to_state is defined else ''Motion
+      Detected'' }}'
+    max_frames: '{{ states(''input_number.llm_vision_max_frames'') | int(3) }}'
+    duration: '{{ states(''input_number.llm_vision_capture_duration_sec'') | int(5)
+      }}'
+    frame_interval: '{{ (states(''input_number.llm_vision_capture_duration_sec'')
+      | int(5) / [states(''input_number.llm_vision_max_frames'') | int(3), 1] | max)
+      | int(1) }}'
+    base_path: /media/llmvision/events/
+    person_recognition_enabled: '{{ is_state(''input_boolean.person_recognition_enabled'',
+      ''on'') }}'
+    person_base_path: /media/llmvision/people/
+    best_frame_index: 2
+    best_frame_path: '{{ base_path + event_ts + ''_f'' + (best_frame_index | string)
+      + ''.jpg'' }}'
+- *id001
+- *id001
+- *id001
+- *id001
+- *id001

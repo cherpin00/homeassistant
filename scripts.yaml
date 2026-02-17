@@ -1,0 +1,50 @@
+test_person_registry_read:
+  alias: Test Person Registry Read
+  sequence:
+  - variables:
+      registry_raw: '{{ states(''input_text.person_registry_metadata'') }}'
+      registry_json: '{{ registry_raw | from_json }}'
+      next_id: '{{ registry_json.next_id }}'
+      person_ids: '{{ registry_json.person_ids }}'
+  - action: persistent_notification.create
+    data:
+      title: Person Registry Test
+      message: 'Registry loaded successfully!
+
+
+        Next ID: {{ next_id }}
+
+        Person IDs: {{ person_ids | join('', '') }}
+
+        Last Updated: {{ registry_json.last_updated }}'
+test_person_data_readwrite:
+  alias: Test Person Data Read/Write
+  sequence:
+  - variables:
+      person_a_raw: '{{ states(''input_text.person_a_data'') }}'
+      person_a_json: '{{ person_a_raw | from_json }}'
+  - variables:
+      updated_person_a: '{{ person_a_json | combine({''appearance_count'': person_a_json.appearance_count
+        + 1, ''last_seen'': now().isoformat()}) }}'
+  - action: input_text.set_value
+    target:
+      entity_id: input_text.person_a_data
+    data:
+      value: '{{ updated_person_a | to_json }}'
+  - delay:
+      seconds: 1
+  - variables:
+      person_a_verify: '{{ states(''input_text.person_a_data'') | from_json }}'
+  - action: persistent_notification.create
+    data:
+      title: Person Data Test
+      message: 'Person A data update successful!
+
+
+        ID: {{ person_a_verify.id }}
+
+        Label: {{ person_a_verify.label }}
+
+        Appearance Count: {{ person_a_verify.appearance_count }}
+
+        Last Seen: {{ person_a_verify.last_seen }}'
