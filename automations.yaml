@@ -233,13 +233,16 @@
     data:
       title: '{{ llm_result.get(''title'') or trigger_name }}'
       message: "**{{ now().strftime('%b %d %Y, %I:%M %p') }}**\n{{ llm_result.response_text
-        | default('No response') }}\n\U0001F4F7 Living Room Camera\n"
+        | default('No response') }}{% if person_label %}\n\U0001F464 {{ person_label
+        }}{% if is_new_person %} (new){% endif %}{% endif %}\n\U0001F4F7 Living Room
+        Camera\n"
       notification_id: llmvision_{{ event_ts }}
   - alias: Step E — Update phone notification with AI result
     action: notify.mobile_app_pixel_8_pro
     data:
       title: '{{ llm_result.get(''title'') or trigger_name }}'
-      message: '{{ llm_result.response_text | default(''No response'') }}'
+      message: '{{ llm_result.response_text | default(''No response'') }}{% if person_label
+        %} 👤 {{ person_label }}{% if is_new_person %} (new){% endif %}{% endif %}'
       data:
         image: '{{ llm_result.get(''image'') or (base_path + event_ts + ''_f1.jpg'')
           }}'
