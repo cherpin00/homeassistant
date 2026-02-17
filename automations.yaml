@@ -1,5 +1,5 @@
 - id: '1770741442986'
-  alias: Notify when front door is unlocked
+  alias: Notify when front door is unlocked - edited through git
   description: ''
   triggers:
   - entity_id: lock.assure_2_biometric_deadbolt
