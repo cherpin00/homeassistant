@@ -112,9 +112,56 @@
 
           '
     - variables:
-        match_result: "{% if person_ids | length == 0 %}\n  NEW\n{% else %}\n  MATCH:
-          {{ person_ids[0] }}\n{% endif %}\n"
-        match_confidence: 75
+        comparison_images: |-
+          {% if person_ids | length == 0 %}
+          {{ best_frame_path }}
+          {% else %}
+          {% set ns = namespace(images=[]) %}
+          {% for person_id in person_ids %}
+          {% set person_data = states('input_text.person_' ~ person_id ~ '_data') | from_json %}
+          {% if person_data.reference_images %}
+          {% set ns.images = ns.images + person_data.reference_images[:1] %}
+          {% endif %}
+          {% endfor %}
+          {{ (ns.images + [best_frame_path]) | join('\n') }}
+          {% endif %}
+        enhanced_match_prompt: |-
+          {% if person_ids | length == 0 %}
+          First person detected - no comparison needed.
+          {% else %}
+          You are comparing a person in a NEW image to KNOWN people.
+
+          KNOWN PEOPLE (Reference Images {{ person_ids | length }} - {{ person_ids | length }}):
+          {{ known_people_prompt }}
+
+          NEW IMAGE (Image {{ person_ids | length + 1 }}): Current capture to identify
+
+          Compare the person in the NEW image (last image) to each KNOWN person (earlier images).
+          Consider facial features, build, height, clothing style, hair.
+
+          Respond with ONLY ONE line in this exact format:
+          MATCH: person_x (if confident match, where x is a/b/c/etc)
+          NEW (if this is definitely someone new)
+          UNCLEAR (if you can't see the person clearly)
+          {% endif %}
+    - if:
+      - condition: template
+        value_template: '{{ person_ids | length > 0 }}'
+      then:
+      - action: llmvision.image_analyzer
+        data:
+          provider: 01KHDH36JH319D6FP251VYXE80
+          image_file: '{{ comparison_images }}'
+          remember: false
+          message: '{{ enhanced_match_prompt }}'
+        response_variable: match_response
+      - variables:
+          match_result: '{{ match_response.response_text.strip() }}'
+          match_confidence: 80
+      else:
+      - variables:
+          match_result: NEW
+          match_confidence: 100
     - if:
       - condition: template
         value_template: '{{ match_result.startswith(''MATCH:'') }}'
