@@ -1,3 +1,15 @@
+- id: '1770741442985'
+  alias: Auto-enable Person Recognition on Startup
+  description: Ensures person recognition is enabled after Home Assistant restarts
+  triggers:
+  - platform: homeassistant
+    event: start
+  conditions: []
+  actions:
+  - action: input_boolean.turn_on
+    target:
+      entity_id: input_boolean.person_recognition_enabled
+  mode: single
 - id: '1770741442986'
   alias: Notify when front door is unlocked - edited through git
   description: ''
