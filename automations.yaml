@@ -149,12 +149,17 @@
           NEW IMAGE (Image {{ person_ids | length + 1 }}): Current capture to identify
 
           Compare the person in the NEW image (last image) to each KNOWN person (earlier images).
-          Consider facial features, build, height, clothing style, hair.
+          Consider facial features, build, height, clothing style, hair, and overall appearance.
+
+          IMPORTANT: Only say UNCLEAR if the person is extremely obscured (mostly hidden behind objects,
+          very dark/blurry where you can barely make out it's a person, or face completely turned away).
+          If you can see their clothing, body type, hair, or any distinguishing features, you MUST choose
+          MATCH or NEW. Don't be overly cautious - make your best judgment based on what you can see.
 
           Respond with ONLY ONE line in this exact format:
-          MATCH: person_x (if confident match, where x is a/b/c/etc)
-          NEW (if this is definitely someone new)
-          UNCLEAR (if you can't see the person clearly)
+          MATCH: person_x (if this looks like a known person, where x is a/b/c/etc)
+          NEW (if this appears to be someone different)
+          UNCLEAR (ONLY if person is extremely obscured/hidden/invisible)
           {% endif %}
     - if:
       - condition: template
