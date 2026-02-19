@@ -61,16 +61,20 @@
         then:
         - delay:
             seconds: '{{ frame_interval }}'
-  - alias: Step B1 — Send immediate motion notification
-    action: notify.mobile_app_pixel_8_pro
-    data:
-      title: Motion Detected
-      message: Living Room — analyzing...
+  - alias: Step B1 — Send immediate motion notification (new events only)
+    if:
+    - condition: template
+      value_template: '{{ not is_continuation }}'
+    then:
+    - action: notify.mobile_app_pixel_8_pro
       data:
-        tag: '{{ event_ts }}'
-        group: living-room-camera
-        channel: LLM Vision
-        importance: high
+        title: Motion Detected
+        message: Living Room — analyzing...
+        data:
+          tag: '{{ notification_tag }}'
+          group: living-room-camera
+          channel: LLM Vision
+          importance: high
   - alias: Step B2 — Person Recognition
     if:
     - condition: template
@@ -275,9 +279,34 @@
       include_filename: true
       expose_images: true
       generate_title: true
-      message: Summarize what is happening in these images. Focus only on moving subjects.
-        Be concise but clear. If nothing happens, say 'No activity observed.'
+      message: >-
+        {% if is_continuation %}
+        This is a continuation of an ongoing event. Previous analysis: {{ (active_event | from_json).previous_summary }}. Now analyze these new frames and provide an updated overall summary of the full event so far. Focus only on moving subjects. Be concise but clear.
+        {% else %}
+        Summarize what is happening in these images. Focus only on moving subjects. Be concise but clear. If nothing happens, say 'No activity observed.'
+        {% endif %}
     response_variable: llm_result
+  - alias: Step D0 — Update active event state
+    variables:
+      current_event: '{{ active_event | from_json }}'
+      updated_event: >-
+        {{ current_event | combine({
+          "update_count": current_event.update_count + 1,
+          "previous_summary": llm_result.response_text | default('No response')
+        }) | to_json }}
+      update_count: '{{ (current_event.update_count + 1) }}'
+      event_start_ts: '{{ current_event.start_ts }}'
+      duration_min: '{{ ((as_timestamp(now()) - as_timestamp(strptime(current_event.start_ts, ''%Y%m%d_%H%M%S''))) / 60) | round(0) | int }}'
+      footer: >-
+        {% if update_count | int > 1 %}
+        Updated {{ update_count }}x over {{ duration_min }} min
+        {% endif %}
+  - alias: Step D0b — Persist active event state
+    action: input_text.set_value
+    target:
+      entity_id: input_text.llm_vision_active_event
+    data:
+      value: '{{ updated_event }}'
   - alias: Step D1 — Persist summary to input_text helper
     action: input_text.set_value
     target:
@@ -304,23 +333,38 @@
       message: "**{{ now().strftime('%b %d %Y, %I:%M %p') }}**\n{{ llm_result.response_text
         | default('No response') }}{% if person_label %}\n\U0001F464 {{ person_label
         }}{% if is_new_person %} (new){% endif %}{% endif %}\n\U0001F4F7 Living Room
-        Camera\n"
-      notification_id: llmvision_{{ event_ts }}
+        Camera\n{{ footer }}"
+      notification_id: '{{ notification_tag }}'
   - alias: Step E — Update phone notification with AI result
     action: notify.mobile_app_pixel_8_pro
     data:
       title: '{{ llm_result.get(''title'') or trigger_name }}'
-      message: '{{ llm_result.response_text | default(''No response'') }}{% if person_label
-        %} 👤 {{ person_label }}{% if is_new_person %} (new){% endif %}{% endif %}'
+      message: "{{ llm_result.response_text | default('No response') }}{% if person_label
+        %} \U0001F464 {{ person_label }}{% if is_new_person %} (new){% endif %}{% endif
+        %}\n{{ footer }}"
       data:
         image: '{{ llm_result.get(''image'') or (base_path + event_ts + ''_f1.jpg'')
           }}'
-        tag: '{{ event_ts }}'
+        tag: '{{ notification_tag }}'
         group: living-room-camera
         channel: LLM Vision
         importance: high
         clickAction: lovelace/
-  mode: single
+  - alias: Step F — Cooldown loop (waits for re-trigger or expiry)
+    repeat:
+      while:
+      - condition: template
+        value_template: '{{ repeat.index * 30 <= cooldown_sec | int }}'
+      sequence:
+      - delay:
+          seconds: 30
+  - alias: Step G — Clear active event (cooldown expired, event over)
+    action: input_text.set_value
+    target:
+      entity_id: input_text.llm_vision_active_event
+    data:
+      value: ''
+  mode: restart
   variables:
     event_ts: '{{ now().strftime(''%Y%m%d_%H%M%S'') }}'
     trigger_name: '{{ trigger.to_state.name if trigger.to_state is defined else ''Motion
@@ -331,6 +375,8 @@
     frame_interval: '{{ (states(''input_number.llm_vision_capture_duration_sec'')
       | int(5) / [states(''input_number.llm_vision_max_frames'') | int(3), 1] | max)
       | int(1) }}'
+    cooldown_sec: '{{ states(''input_number.llm_vision_cooldown_sec'') | int(180)
+      }}'
     base_path: /media/llmvision/events/
     person_recognition_enabled: '{{ is_state(''input_boolean.person_recognition_enabled'',
       ''on'') }}'
@@ -338,6 +384,16 @@
     best_frame_index: 2
     best_frame_path: '{{ base_path + event_ts + ''_f'' + (best_frame_index | string)
       + ''.jpg'' }}'
+    active_event_raw: '{{ states(''input_text.llm_vision_active_event'') }}'
+    is_continuation: '{{ active_event_raw not in ['''', ''unknown'', ''unavailable'']
+      }}'
+    active_event: >-
+      {% if is_continuation %}
+        {{ active_event_raw }}
+      {% else %}
+        {{ {"start_ts": event_ts, "update_count": 0, "previous_summary": ""} | to_json }}
+      {% endif %}
+    notification_tag: llmvision_living_room
 - *id001
 - *id001
 - *id001
