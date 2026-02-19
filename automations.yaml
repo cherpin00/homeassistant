@@ -1,3 +1,15 @@
+- id: '1770741442985'
+  alias: Auto-enable Person Recognition on Startup
+  description: Ensures person recognition is enabled after Home Assistant restarts
+  triggers:
+  - platform: homeassistant
+    event: start
+  conditions: []
+  actions:
+  - action: input_boolean.turn_on
+    target:
+      entity_id: input_boolean.person_recognition_enabled
+  mode: single
 - id: '1770741442986'
   alias: Notify when front door is unlocked - edited through git
   description: ''
@@ -77,12 +89,14 @@
         level: info
     - variables:
         known_people_prompt: "{% set ns = namespace(people_list=[]) %} {% for person_id
-          in person_ids %}\n  {% set person_data = states('input_text.person_' ~ person_id
-          ~ '_data') | from_json %}\n  {% set label = person_data.user_label if person_data.user_label
-          else person_data.label %}\n  {% set ns.people_list = ns.people_list + [label
-          ~ ' (ID: ' ~ person_id ~ ')'] %}\n{% endfor %} {% if ns.people_list | length
-          > 0 %}\n  Known People:\n  {{ ns.people_list | join('\\n') }}\n{% else %}\n
-          \ No known people yet.\n{% endif %}\n"
+          in person_ids %}\n  {% set person_state = states('input_text.person_' ~
+          person_id ~ '_data') %}\n  {% if person_state not in ['unknown', 'unavailable']
+          %}\n    {% set person_data = person_state | from_json %}\n    {% set label
+          = person_data.user_label if person_data.user_label else person_data.label
+          %}\n    {% set ns.people_list = ns.people_list + [label ~ ' (ID: ' ~ person_id
+          ~ ')'] %}\n  {% endif %}\n{% endfor %} {% if ns.people_list | length > 0
+          %}\n  Known People:\n  {{ ns.people_list | join('\\n') }}\n{% else %}\n  No
+          known people yet.\n{% endif %}\n"
         person_match_prompt: 'You are comparing a person in a new image to known people.
 
 
@@ -112,9 +126,64 @@
 
           '
     - variables:
-        match_result: "{% if person_ids | length == 0 %}\n  NEW\n{% else %}\n  MATCH:
-          {{ person_ids[0] }}\n{% endif %}\n"
-        match_confidence: 75
+        comparison_images: |-
+          {% if person_ids | length == 0 %}
+          {{ best_frame_path }}
+          {% else %}
+          {% set ns = namespace(images=[]) %}
+          {% for person_id in person_ids %}
+          {% set person_state = states('input_text.person_' ~ person_id ~ '_data') %}
+          {% if person_state not in ['unknown', 'unavailable'] %}
+          {% set person_data = person_state | from_json %}
+          {% if person_data.reference_images %}
+          {% set ns.images = ns.images + person_data.reference_images[:1] %}
+          {% endif %}
+          {% endif %}
+          {% endfor %}
+          {{ (ns.images + [best_frame_path]) | join('\n') }}
+          {% endif %}
+        enhanced_match_prompt: |-
+          {% if person_ids | length == 0 %}
+          First person detected - no comparison needed.
+          {% else %}
+          You are comparing a person in a NEW image to KNOWN people.
+
+          KNOWN PEOPLE (Reference Images {{ person_ids | length }} - {{ person_ids | length }}):
+          {{ known_people_prompt }}
+
+          NEW IMAGE (Image {{ person_ids | length + 1 }}): Current capture to identify
+
+          Compare the person in the NEW image (last image) to each KNOWN person (earlier images).
+          Consider facial features, build, height, clothing style, hair, and overall appearance.
+
+          IMPORTANT: Only say UNCLEAR if the person is extremely obscured (mostly hidden behind objects,
+          very dark/blurry where you can barely make out it's a person, or face completely turned away).
+          If you can see their clothing, body type, hair, or any distinguishing features, you MUST choose
+          MATCH or NEW. Don't be overly cautious - make your best judgment based on what you can see.
+
+          Respond with ONLY ONE line in this exact format:
+          MATCH: person_x (if this looks like a known person, where x is a/b/c/etc)
+          NEW (if this appears to be someone different)
+          UNCLEAR (ONLY if person is extremely obscured/hidden/invisible)
+          {% endif %}
+    - if:
+      - condition: template
+        value_template: '{{ person_ids | length > 0 }}'
+      then:
+      - action: llmvision.image_analyzer
+        data:
+          provider: 01KHDH36JH319D6FP251VYXE80
+          image_file: '{{ comparison_images }}'
+          remember: false
+          message: '{{ enhanced_match_prompt }}'
+        response_variable: match_response
+      - variables:
+          match_result: '{{ match_response.response_text.strip() }}'
+          match_confidence: 80
+      else:
+      - variables:
+          match_result: NEW
+          match_confidence: 100
     - if:
       - condition: template
         value_template: '{{ match_result.startswith(''MATCH:'') }}'
@@ -167,15 +236,20 @@
               entity_id: input_text.person_{{ new_person_id }}_data
             data:
               value: '{{ new_person_data | to_json }}'
-        - variables:
-            updated_registry: "{{\n  registry_json | combine({\n    'person_ids':
-              person_ids + [new_person_id],\n    'next_id': {'a':'b','b':'c','c':'d','d':'e','e':'f','f':'g','g':'h','h':'i','i':'j','j':'k','k':'l','l':'m','m':'n','n':'o','o':'p','p':'q','q':'r','r':'s','s':'t','t':'u','u':'v','v':'w','w':'x','x':'y','y':'z','z':'aa'}[new_person_id],\n
-              \   'last_updated': now().isoformat()\n  })\n}}\n"
-        - action: input_text.set_value
-          target:
-            entity_id: input_text.person_registry_metadata
-          data:
-            value: '{{ updated_registry | to_json }}'
+          - variables:
+              updated_registry: |-
+                {{
+                  registry_json | combine({
+                    'person_ids': person_ids + [new_person_id],
+                    'next_id': {'a':'b','b':'c','c':'d','d':'e','e':'f','f':'g','g':'h','h':'i','i':'j','j':'k','k':'l','l':'m','m':'n','n':'o','o':'p','p':'q','q':'r','r':'s','s':'t','t':'u','u':'v','v':'w','w':'x','x':'y','y':'z','z':'aa'}[new_person_id],
+                    'last_updated': now().isoformat()
+                  })
+                }}
+          - action: input_text.set_value
+            target:
+              entity_id: input_text.person_registry_metadata
+            data:
+              value: '{{ updated_registry | to_json }}'
         else:
         - variables:
             person_label: Unknown Person
@@ -228,13 +302,16 @@
     data:
       title: '{{ llm_result.get(''title'') or trigger_name }}'
       message: "**{{ now().strftime('%b %d %Y, %I:%M %p') }}**\n{{ llm_result.response_text
-        | default('No response') }}\n\U0001F4F7 Living Room Camera\n"
+        | default('No response') }}{% if person_label %}\n\U0001F464 {{ person_label
+        }}{% if is_new_person %} (new){% endif %}{% endif %}\n\U0001F4F7 Living Room
+        Camera\n"
       notification_id: llmvision_{{ event_ts }}
   - alias: Step E — Update phone notification with AI result
     action: notify.mobile_app_pixel_8_pro
     data:
       title: '{{ llm_result.get(''title'') or trigger_name }}'
-      message: '{{ llm_result.response_text | default(''No response'') }}'
+      message: '{{ llm_result.response_text | default(''No response'') }}{% if person_label
+        %} 👤 {{ person_label }}{% if is_new_person %} (new){% endif %}{% endif %}'
       data:
         image: '{{ llm_result.get(''image'') or (base_path + event_ts + ''_f1.jpg'')
           }}'
