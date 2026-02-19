@@ -194,20 +194,37 @@
       then:
       - variables:
           matched_person_id: '{{ match_result.split('':'')[1].strip() }}'
-          person_data: '{{ states(''input_text.person_'' ~ matched_person_id ~ ''_data'')
-            | from_json }}'
-          person_label: '{{ person_data.user_label if person_data.user_label else
-            person_data.label }}'
-          person_id: '{{ matched_person_id }}'
-          is_new_person: false
-      - variables:
-          updated_person_data: "{{\n  person_data | combine({\n    'last_seen': now().isoformat(),\n
-            \   'appearance_count': person_data.appearance_count + 1\n  })\n}}\n"
-      - action: input_text.set_value
-        target:
-          entity_id: input_text.person_{{ person_id }}_data
-        data:
-          value: '{{ updated_person_data | to_json }}'
+          matched_person_raw: '{{ states(''input_text.person_'' ~ matched_person_id
+            ~ ''_data'') }}'
+      - if:
+        - condition: template
+          value_template: '{{ matched_person_raw not in [''unknown'', ''unavailable'',
+            ''''] }}'
+        then:
+        - variables:
+            person_data: '{{ matched_person_raw | from_json }}'
+            person_label: '{{ person_data.user_label if person_data.user_label else
+              person_data.label }}'
+            person_id: '{{ matched_person_id }}'
+            is_new_person: false
+        - variables:
+            updated_person_data: "{{\n  person_data | combine({\n    'last_seen': now().isoformat(),\n
+              \   'appearance_count': person_data.appearance_count + 1\n  })\n}}\n"
+        - action: input_text.set_value
+          target:
+            entity_id: input_text.person_{{ person_id }}_data
+          data:
+            value: '{{ updated_person_data | to_json }}'
+        else:
+        - variables:
+            person_label: Unknown Person
+            person_id:
+            is_new_person: false
+        - action: system_log.write
+          data:
+            message: 'Person recognition: Matched person {{ matched_person_id }} but
+              data helper is {{ matched_person_raw }}'
+            level: warning
       else:
       - if:
         - condition: template
