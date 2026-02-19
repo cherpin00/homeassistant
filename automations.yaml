@@ -89,12 +89,14 @@
         level: info
     - variables:
         known_people_prompt: "{% set ns = namespace(people_list=[]) %} {% for person_id
-          in person_ids %}\n  {% set person_data = states('input_text.person_' ~ person_id
-          ~ '_data') | from_json %}\n  {% set label = person_data.user_label if person_data.user_label
-          else person_data.label %}\n  {% set ns.people_list = ns.people_list + [label
-          ~ ' (ID: ' ~ person_id ~ ')'] %}\n{% endfor %} {% if ns.people_list | length
-          > 0 %}\n  Known People:\n  {{ ns.people_list | join('\\n') }}\n{% else %}\n
-          \ No known people yet.\n{% endif %}\n"
+          in person_ids %}\n  {% set person_state = states('input_text.person_' ~
+          person_id ~ '_data') %}\n  {% if person_state not in ['unknown', 'unavailable']
+          %}\n    {% set person_data = person_state | from_json %}\n    {% set label
+          = person_data.user_label if person_data.user_label else person_data.label
+          %}\n    {% set ns.people_list = ns.people_list + [label ~ ' (ID: ' ~ person_id
+          ~ ')'] %}\n  {% endif %}\n{% endfor %} {% if ns.people_list | length > 0
+          %}\n  Known People:\n  {{ ns.people_list | join('\\n') }}\n{% else %}\n  No
+          known people yet.\n{% endif %}\n"
         person_match_prompt: 'You are comparing a person in a new image to known people.
 
 
@@ -130,9 +132,12 @@
           {% else %}
           {% set ns = namespace(images=[]) %}
           {% for person_id in person_ids %}
-          {% set person_data = states('input_text.person_' ~ person_id ~ '_data') | from_json %}
+          {% set person_state = states('input_text.person_' ~ person_id ~ '_data') %}
+          {% if person_state not in ['unknown', 'unavailable'] %}
+          {% set person_data = person_state | from_json %}
           {% if person_data.reference_images %}
           {% set ns.images = ns.images + person_data.reference_images[:1] %}
+          {% endif %}
           {% endif %}
           {% endfor %}
           {{ (ns.images + [best_frame_path]) | join('\n') }}
