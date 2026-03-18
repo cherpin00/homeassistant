@@ -19,6 +19,7 @@ http:
 homeassistant:
   external_url: https://ha.herpin.xyz
   internal_url: http://192.168.72.110:8123
-  
-  
+
+prometheus:
+
 
