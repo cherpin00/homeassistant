@@ -1,0 +1,11 @@
+- alias: Goodnight - Turn Off House
+  description: Turn off all house lights and ceiling fans using the new groups
+  triggers: []
+  conditions: []
+  actions:
+    - action: homeassistant.turn_off
+      target:
+        entity_id:
+          - group.all_house_lights
+          - group.all_ceiling_fans
+  mode: single
