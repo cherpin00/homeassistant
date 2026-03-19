@@ -1,61 +1,53 @@
-# First-pass house groups for easier management
-# Added 2026-03-18 as minimal grouping structure
+# First-pass house groups
+# These will create group.* entities
 
-light:
-  - platform: group
-    name: All House Lights
-    unique_id: all_house_lights
-    entities:
-      - light.wet_bar_light
-      - light.master_bath_light
-      - light.utility_light
-      - light.living_room_main_light
-      - light.office_main_light
-      - light.kitchen_main_light
-      - light.master_entry_light
-      - light.guest_bath_light
-      - light.bed_3_light
-      - light.bed_2_light
-      - light.half_bath_light
-      - light.bed_1_light
-      - light.living_room_floodlight
+all_house_lights:
+  name: All House Lights
+  entities:
+    - light.wet_bar_light
+    - light.master_bath_light
+    - light.utility_light
+    - light.living_room_main_light
+    - light.office_main_light
+    - light.kitchen_main_light
+    - light.master_entry_light
+    - light.guest_bath_light
+    - light.bed_3_light
+    - light.bed_2_light
+    - light.half_bath_light
+    - light.bed_1_light
+    - light.living_room_floodlight
 
-  - platform: group
-    name: All Bathroom Lights
-    unique_id: all_bathroom_lights
-    entities:
-      - light.master_bath_light
-      - light.guest_bath_light
-      - light.half_bath_light
+all_bathroom_lights:
+  name: All Bathroom Lights
+  entities:
+    - light.master_bath_light
+    - light.guest_bath_light
+    - light.half_bath_light
 
-  - platform: group
-    name: All Bedroom Lights
-    unique_id: all_bedroom_lights
-    entities:
-      - light.bed_1_light
-      - light.bed_2_light
-      - light.bed_3_light
+all_bedroom_lights:
+  name: All Bedroom Lights
+  entities:
+    - light.bed_1_light
+    - light.bed_2_light
+    - light.bed_3_light
 
-switch:
-  - platform: group
-    name: All Bathroom Fans
-    unique_id: all_bathroom_fans
-    entities:
-      - switch.guest_bath_fan
-      - switch.master_bath_fan
+all_bathroom_fans:
+  name: All Bathroom Fans
+  entities:
+    - switch.guest_bath_fan
+    - switch.master_bath_fan
 
-  - platform: group
-    name: All Ceiling Fans
-    unique_id: all_ceiling_fans
-    entities:
-      - switch.bed_1_fan
-      - switch.bed_2_fan
-      - switch.bed_3_fan
-      - switch.master_fan
+all_ceiling_fans:
+  name: All Ceiling Fans
+  entities:
+    - switch.bed_1_fan
+    - switch.bed_2_fan
+    - switch.bed_3_fan
+    - switch.master_fan
 
-  - platform: group
-    name: All Vanity Lights
-    unique_id: all_vanity_lights
-    entities:
-      - switch.guest_bath_vanity
-      - switch.master_bath_vanity
+all_vanity_lights:
+  name: All Vanity Lights
+  entities:
+    - switch.guest_bath_vanity
+    - switch.master_bath_vanity

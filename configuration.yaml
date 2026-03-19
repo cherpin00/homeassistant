@@ -1,19 +1,15 @@
-
 # Loads default set of integrations. Do not remove.
 default_config:
 
-# Load frontend themes from the themes folder
 frontend:
   themes: !include_dir_merge_named themes
 
-# First-pass house groups and helpers
-groups: !include groups.yaml
-helpers: !include helpers.yaml
+group: !include groups.yaml
+input_number: !include input_numbers.yaml
 
 automation: !include automations.yaml
 script: !include scripts.yaml
 scene: !include scenes.yaml
-
 
 http:
   use_x_forwarded_for: true
@@ -25,5 +21,3 @@ homeassistant:
   internal_url: http://192.168.72.110:8123
 
 prometheus:
-
-
