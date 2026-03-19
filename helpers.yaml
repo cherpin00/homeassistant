@@ -1,0 +1,30 @@
+# First-pass shared helpers for auto-off delays
+# Added 2026-03-18 as minimal helper set
+
+input_number:
+  default_light_auto_off_minutes:
+    name: Default Light Auto Off Minutes
+    min: 1
+    max: 120
+    step: 1
+    mode: box
+    unit_of_measurement: min
+    initial: 15
+
+  bathroom_light_auto_off_minutes:
+    name: Bathroom Light Auto Off Minutes
+    min: 1
+    max: 120
+    step: 1
+    mode: box
+    unit_of_measurement: min
+    initial: 20
+
+  bathroom_fan_auto_off_minutes:
+    name: Bathroom Fan Auto Off Minutes
+    min: 1
+    max: 180
+    step: 1
+    mode: box
+    unit_of_measurement: min
+    initial: 30
