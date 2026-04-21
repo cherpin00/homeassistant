@@ -1,0 +1,17 @@
+- id: '1776786915023'
+  alias: Test Automation
+  description: ''
+  triggers:
+  - device_id: d3c3fc92738ac250b80cc741ef2f3566
+    domain: device_tracker
+    entity_id: 281bc9f48f8335b553bc64120e8619e0
+    type: leaves
+    trigger: device
+    zone: zone.home
+  conditions: []
+  actions:
+  - action: notify.mobile_app_pixel_8_pro
+    metadata: {}
+    data:
+      message: Hello World!
+  mode: single
