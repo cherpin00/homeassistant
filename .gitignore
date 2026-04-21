@@ -25,3 +25,6 @@ __pycache__/
 
 .HA_VERSION
 
+gitpull_rsa
+gitpull_rsa.pub
+
