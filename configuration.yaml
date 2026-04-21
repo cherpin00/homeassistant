@@ -21,3 +21,13 @@ homeassistant:
   internal_url: http://192.168.72.110:8123
 
 prometheus:
+
+# Amazon Echo example configuration.yaml entry
+emulated_hue:
+  listen_port: 80
+  # Amazon Echo/Alexa stopped working on different ports. Search for "Philips Hue Bridge V1 (round)" in the Alexa App to discover devices.
+  host_ip: 192.168.72.110
+  expose_by_default: false
+  entities:
+    light.kitchen_main_light:
+      name: "Kitchen Main Light"
