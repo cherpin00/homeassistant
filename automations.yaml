@@ -1,17 +1,65 @@
-- id: '1776786915023'
-  alias: Test Automation
-  description: ''
+- id: '1776816463721'
+  alias: Auto Arm Away When Phone Leaves
+  description: Arms the alarm to away mode when the Pixel 8 Pro leaves home and sends
+    a mobile notification
   triggers:
-  - device_id: d3c3fc92738ac250b80cc741ef2f3566
-    domain: device_tracker
-    entity_id: 281bc9f48f8335b553bc64120e8619e0
-    type: leaves
-    trigger: device
-    zone: zone.home
-  conditions: []
+  - platform: state
+    entity_id: person.cherpin
+    to: not_home
+  conditions:
+  - condition: state
+    entity_id: alarm_control_panel.alarmo
+    state: disarmed
   actions:
+  - action: alarm_control_panel.alarm_arm_away
+    target:
+      entity_id: alarm_control_panel.alarmo
   - action: notify.mobile_app_pixel_8_pro
+    data:
+      title: House Secured
+      message: The alarm has been automatically set to Armed Away.
+  mode: single
+- id: '1776816464966'
+  alias: Front Camera Alert When Armed
+  description: Sends a notification when a person or vehicle is detected at the front
+    right camera, but only after the alarm has been armed away for at least 5 minutes
+    (grace period)
+  triggers:
+  - entity_id: binary_sensor.front_right_person
+    to: 'on'
+    for:
+      seconds: 5
+    id: person
+    trigger: state
+  - entity_id: binary_sensor.front_right_vehicle
+    to: 'on'
+    for:
+      seconds: 5
+    id: vehicle
+    trigger: state
+  conditions:
+  - condition: state
+    entity_id: alarm_control_panel.alarmo
+    state:
+    - armed_away
+    for:
+      hours: 0
+      minutes: 1
+      seconds: 0
+  actions:
+  - variables:
+      alert_message: "{% if trigger.id == 'person' %}\n  A person was detected at
+        the front right camera.\n{% else %}\n  A vehicle was detected at the front
+        right camera.\n{% endif %}"
+  - action: notify.mobile_app_pixel_8_pro
+    data:
+      title: Front Camera Alert
+      message: '{{ alert_message }}'
+  - action: script.announce
     metadata: {}
     data:
-      message: Hello World!
+      message: '{{ alert_message }}'
+      type: announce
+  - delay:
+      minutes: 10
   mode: single

@@ -48,3 +48,27 @@ test_person_data_readwrite:
         Appearance Count: {{ person_a_verify.appearance_count }}
 
         Last Seen: {{ person_a_verify.last_seen }}'
+announce:
+  alias: Alexa Announce
+  mode: queued
+  fields:
+    message:
+      name: Message
+      required: true
+      selector:
+        text:
+    type:
+      name: Type
+      required: false
+      default: announce
+      selector:
+        select:
+          options:
+          - announce
+          - tts
+  sequence:
+  - action: notify.alexa_media_caleb_s_3rd_echo_dot
+    data:
+      message: '{{ message }}'
+      data:
+        type: '{{ type | default(''announce'') }}'
