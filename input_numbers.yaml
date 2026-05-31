@@ -26,3 +26,30 @@ bathroom_fan_auto_off_minutes:
   mode: box
   unit_of_measurement: min
   initial: 30
+
+security_sensor_debounce_seconds:
+  name: Security Sensor Debounce (Seconds)
+  min: 1
+  max: 60
+  step: 1
+  mode: box
+  unit_of_measurement: s
+  initial: 10
+
+security_stage_1_alert_seconds:
+  name: Security Stage 1 Alert Delay (Seconds)
+  min: 5
+  max: 300
+  step: 5
+  mode: box
+  unit_of_measurement: s
+  initial: 15
+
+security_stage_2_alarm_seconds:
+  name: Security Stage 2 Alarm Delay (Seconds)
+  min: 15
+  max: 600
+  step: 15
+  mode: box
+  unit_of_measurement: s
+  initial: 60

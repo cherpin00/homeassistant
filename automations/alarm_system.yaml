@@ -93,27 +93,27 @@
       entity_id: binary_sensor.doorbell_smart_person
       to: 'on'
       for:
-        seconds: 15
+        seconds: "{{ states('input_number.security_stage_1_alert_seconds') | int(15) }}"
     - platform: state
       entity_id: binary_sensor.front_left_smart_person
       to: 'on'
       for:
-        seconds: 15
+        seconds: "{{ states('input_number.security_stage_1_alert_seconds') | int(15) }}"
     - platform: state
       entity_id: binary_sensor.front_right_smart_person
       to: 'on'
       for:
-        seconds: 15
+        seconds: "{{ states('input_number.security_stage_1_alert_seconds') | int(15) }}"
     - platform: state
       entity_id: binary_sensor.back_left_smart_person
       to: 'on'
       for:
-        seconds: 15
+        seconds: "{{ states('input_number.security_stage_1_alert_seconds') | int(15) }}"
     - platform: state
       entity_id: binary_sensor.back_right_smart_person
       to: 'on'
       for:
-        seconds: 15
+        seconds: "{{ states('input_number.security_stage_1_alert_seconds') | int(15) }}"
   condition:
     - condition: state
       entity_id: alarm_control_panel.alarmo
@@ -157,27 +157,27 @@
       entity_id: binary_sensor.doorbell_smart_person
       to: 'on'
       for:
-        minutes: 1
+        seconds: "{{ states('input_number.security_stage_2_alarm_seconds') | int(60) }}"
     - platform: state
       entity_id: binary_sensor.front_left_smart_person
       to: 'on'
       for:
-        minutes: 1
+        seconds: "{{ states('input_number.security_stage_2_alarm_seconds') | int(60) }}"
     - platform: state
       entity_id: binary_sensor.front_right_smart_person
       to: 'on'
       for:
-        minutes: 1
+        seconds: "{{ states('input_number.security_stage_2_alarm_seconds') | int(60) }}"
     - platform: state
       entity_id: binary_sensor.back_left_smart_person
       to: 'on'
       for:
-        minutes: 1
+        seconds: "{{ states('input_number.security_stage_2_alarm_seconds') | int(60) }}"
     - platform: state
       entity_id: binary_sensor.back_right_smart_person
       to: 'on'
       for:
-        minutes: 1
+        seconds: "{{ states('input_number.security_stage_2_alarm_seconds') | int(60) }}"
     - platform: state
       entity_id: alarm_control_panel.alarmo
       to: triggered
