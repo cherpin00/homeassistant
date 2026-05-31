@@ -37,6 +37,21 @@ The most complex automation captures camera frames on motion detection, runs LLM
 - Results persisted to `input_text` helpers and sent via persistent notification + mobile push
 - Runs in `single` mode (drops new triggers while running)
 
+## Security System & Tiered Alarms
+
+The security logic is structured into distinct escalation tiers inside `automations/alarm_system.yaml` and relies on custom virtual sensors in `templates.yaml`.
+
+- **Smart Person Sensors**: To handle integration failures, all camera automations trigger off custom virtual sensors (`binary_sensor.*_smart_person`). These natively check Frigate's `property_person_occupancy` zones first, and gracefully fallback to raw Reolink `person` sensors if Frigate is `unavailable`.
+- **Manual Override**: The `input_boolean.prefer_frigate_sensors` toggle can force the system to exclusively use Reolink if turned `off` (useful for split-brain/frozen integrations).
+- **Debounce Logic**: The virtual sensors use a global `input_number.security_sensor_debounce_seconds` (default 10s) via `delay_off` to bridge hardware sensor flickering and allow continuous 15s/60s timers to complete.
+- **Escalation Tiers**:
+  - **Stage 0 (Immediate Awareness)**: Only triggers on `armed_away`. Instantly takes a snapshot from the `_fluent` substream, generates an AI summary, and sends an email + push notification.
+  - **Stage 1 (Linger Alert)**: Triggers on `armed_home` OR `armed_away`. Requires 15s continuous occupancy. Captures a snapshot, fires a rich push notification, and plays an Alexa announcement inside the house. (AI is skipped for speed).
+  - **Stage 2 (Alarm Trigger)**: Triggers on `armed_home` OR `armed_away`. Requires 60s continuous occupancy. Flips the `input_boolean.master_siren_toggle` to trigger hardware sirens.
+- **Nighttime Arming**: 
+  - `Auto Disarm` instantly disarms when the Pixel 8 Pro arrives home.
+  - `Auto Arm Home at Night` automatically arms the perimeter at 10 PM. If you arrive home late, it disarms, waits a 15-minute grace period (for groceries/settling), and then auto-arms the house for the night.
+- **Workflow / Reloading**: Changes to `templates.yaml`, `input_booleans.yaml`, or automations can be reloaded instantly via the HA Developer Tools. Changes to core setups (like the `notify.email_alert` SMTP in `configuration.yaml`) require a full HA system restart.
 ## Working With This Repo
 
 - **Validation**: No local validation tooling. Test changes by loading them in HA (Settings → YAML → Check Configuration, or restart HA).
