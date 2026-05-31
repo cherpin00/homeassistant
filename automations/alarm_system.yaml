@@ -4,19 +4,19 @@
   mode: parallel
   trigger:
     - platform: state
-      entity_id: binary_sensor.doorbell_property_person_occupancy
+      entity_id: binary_sensor.doorbell_smart_person
       to: 'on'
     - platform: state
-      entity_id: binary_sensor.front_left_property_person_occupancy
+      entity_id: binary_sensor.front_left_smart_person
       to: 'on'
     - platform: state
-      entity_id: binary_sensor.front_right_property_person_occupancy
+      entity_id: binary_sensor.front_right_smart_person
       to: 'on'
     - platform: state
-      entity_id: binary_sensor.back_left_property_person_occupancy
+      entity_id: binary_sensor.back_left_smart_person
       to: 'on'
     - platform: state
-      entity_id: binary_sensor.back_right_property_person_occupancy
+      entity_id: binary_sensor.back_right_smart_person
       to: 'on'
   condition:
     - condition: state
@@ -24,19 +24,19 @@
       state: armed_away
   variables:
     cam_map:
-      binary_sensor.doorbell_property_person_occupancy:
+      binary_sensor.doorbell_smart_person:
         fluent: camera.doorbell_fluent
         name: Doorbell
-      binary_sensor.front_left_property_person_occupancy:
+      binary_sensor.front_left_smart_person:
         fluent: camera.front_left_fluent_lens_0
         name: Front Left
-      binary_sensor.front_right_property_person_occupancy:
+      binary_sensor.front_right_smart_person:
         fluent: camera.front_right_fluent_lens_0
         name: Front Right
-      binary_sensor.back_left_property_person_occupancy:
+      binary_sensor.back_left_smart_person:
         fluent: camera.living_room_fluent_lens_0
         name: Back Left
-      binary_sensor.back_right_property_person_occupancy:
+      binary_sensor.back_right_smart_person:
         fluent: camera.back_right_fluent_lens_0
         name: Back Right
     camera_entity: "{{ cam_map[trigger.entity_id].fluent }}"
@@ -90,27 +90,27 @@
   mode: parallel
   trigger:
     - platform: state
-      entity_id: binary_sensor.doorbell_property_person_occupancy
+      entity_id: binary_sensor.doorbell_smart_person
       to: 'on'
       for:
         seconds: 15
     - platform: state
-      entity_id: binary_sensor.front_left_property_person_occupancy
+      entity_id: binary_sensor.front_left_smart_person
       to: 'on'
       for:
         seconds: 15
     - platform: state
-      entity_id: binary_sensor.front_right_property_person_occupancy
+      entity_id: binary_sensor.front_right_smart_person
       to: 'on'
       for:
         seconds: 15
     - platform: state
-      entity_id: binary_sensor.back_left_property_person_occupancy
+      entity_id: binary_sensor.back_left_smart_person
       to: 'on'
       for:
         seconds: 15
     - platform: state
-      entity_id: binary_sensor.back_right_property_person_occupancy
+      entity_id: binary_sensor.back_right_smart_person
       to: 'on'
       for:
         seconds: 15
@@ -120,15 +120,15 @@
       state: armed_away
   variables:
     cam_map:
-      binary_sensor.doorbell_property_person_occupancy:
+      binary_sensor.doorbell_smart_person:
         name: Doorbell
-      binary_sensor.front_left_property_person_occupancy:
+      binary_sensor.front_left_smart_person:
         name: Front Left
-      binary_sensor.front_right_property_person_occupancy:
+      binary_sensor.front_right_smart_person:
         name: Front Right
-      binary_sensor.back_left_property_person_occupancy:
+      binary_sensor.back_left_smart_person:
         name: Back Left
-      binary_sensor.back_right_property_person_occupancy:
+      binary_sensor.back_right_smart_person:
         name: Back Right
     camera_name: "{{ cam_map[trigger.entity_id].name }}"
   action:
@@ -154,27 +154,27 @@
   mode: single
   trigger:
     - platform: state
-      entity_id: binary_sensor.doorbell_property_person_occupancy
+      entity_id: binary_sensor.doorbell_smart_person
       to: 'on'
       for:
         minutes: 1
     - platform: state
-      entity_id: binary_sensor.front_left_property_person_occupancy
+      entity_id: binary_sensor.front_left_smart_person
       to: 'on'
       for:
         minutes: 1
     - platform: state
-      entity_id: binary_sensor.front_right_property_person_occupancy
+      entity_id: binary_sensor.front_right_smart_person
       to: 'on'
       for:
         minutes: 1
     - platform: state
-      entity_id: binary_sensor.back_left_property_person_occupancy
+      entity_id: binary_sensor.back_left_smart_person
       to: 'on'
       for:
         minutes: 1
     - platform: state
-      entity_id: binary_sensor.back_right_property_person_occupancy
+      entity_id: binary_sensor.back_right_smart_person
       to: 'on'
       for:
         minutes: 1

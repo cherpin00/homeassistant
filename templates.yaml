@@ -1,0 +1,50 @@
+- binary_sensor:
+    - name: "Doorbell Smart Person"
+      unique_id: doorbell_smart_person
+      device_class: occupancy
+      state: >
+        {% if states('binary_sensor.doorbell_property_person_occupancy') not in ['unavailable', 'unknown'] %}
+          {{ states('binary_sensor.doorbell_property_person_occupancy') }}
+        {% else %}
+          {{ states('binary_sensor.doorbell_person') }}
+        {% endif %}
+
+    - name: "Front Left Smart Person"
+      unique_id: front_left_smart_person
+      device_class: occupancy
+      state: >
+        {% if states('binary_sensor.front_left_property_person_occupancy') not in ['unavailable', 'unknown'] %}
+          {{ states('binary_sensor.front_left_property_person_occupancy') }}
+        {% else %}
+          {{ states('binary_sensor.front_left_person') }}
+        {% endif %}
+
+    - name: "Front Right Smart Person"
+      unique_id: front_right_smart_person
+      device_class: occupancy
+      state: >
+        {% if states('binary_sensor.front_right_property_person_occupancy') not in ['unavailable', 'unknown'] %}
+          {{ states('binary_sensor.front_right_property_person_occupancy') }}
+        {% else %}
+          {{ states('binary_sensor.front_right_person') }}
+        {% endif %}
+
+    - name: "Back Left Smart Person"
+      unique_id: back_left_smart_person
+      device_class: occupancy
+      state: >
+        {% if states('binary_sensor.back_left_person_occupancy') not in ['unavailable', 'unknown'] %}
+          {{ states('binary_sensor.back_left_person_occupancy') }}
+        {% else %}
+          {{ states('binary_sensor.living_room_person') }}
+        {% endif %}
+
+    - name: "Back Right Smart Person"
+      unique_id: back_right_smart_person
+      device_class: occupancy
+      state: >
+        {% if states('binary_sensor.back_right_person_occupancy') not in ['unavailable', 'unknown'] %}
+          {{ states('binary_sensor.back_right_person_occupancy') }}
+        {% else %}
+          {{ states('binary_sensor.back_right_person') }}
+        {% endif %}
