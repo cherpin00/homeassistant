@@ -5,3 +5,8 @@ master_siren_toggle:
 sirens_enabled:
   name: Hardware Sirens Enabled
   icon: mdi:volume-high
+
+prefer_frigate_sensors:
+  name: Prefer Frigate Sensors (Smart Fallback)
+  icon: mdi:cctv
+  initial: true
