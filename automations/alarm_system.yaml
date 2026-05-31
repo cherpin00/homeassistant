@@ -212,14 +212,19 @@
       entity_id: input_boolean.master_siren_toggle
       to: 'on'
   action:
-    - action: siren.turn_on
-      target:
-        entity_id:
-          - siren.doorbell_siren
-          - siren.front_left_siren
-          - siren.front_right_siren
-          - siren.living_room_siren
-          - siren.back_right_siren
+    - if:
+        - condition: state
+          entity_id: input_boolean.sirens_enabled
+          state: 'on'
+      then:
+        - action: siren.turn_on
+          target:
+            entity_id:
+              - siren.doorbell_siren
+              - siren.front_left_siren
+              - siren.front_right_siren
+              - siren.living_room_siren
+              - siren.back_right_siren
     - action: script.announce
       data:
         message: Warning! Intruder detected! Authorities have been notified!

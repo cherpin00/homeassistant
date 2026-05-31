@@ -1,3 +1,7 @@
 master_siren_toggle:
   name: Master Siren Toggle
   icon: mdi:bullhorn
+
+sirens_enabled:
+  name: Hardware Sirens Enabled
+  icon: mdi:volume-high
