@@ -117,7 +117,9 @@
   condition:
     - condition: state
       entity_id: alarm_control_panel.alarmo
-      state: armed_away
+      state:
+        - armed_away
+        - armed_home
   variables:
     cam_map:
       binary_sensor.doorbell_smart_person:
@@ -184,7 +186,9 @@
   condition:
     - condition: state
       entity_id: alarm_control_panel.alarmo
-      state: armed_away
+      state:
+        - armed_away
+        - armed_home
   action:
     - action: input_boolean.turn_on
       target:
