@@ -19,6 +19,27 @@
       title: House Secured
       message: The alarm has been automatically set to Armed Away.
   mode: single
+- id: '1778390547200'
+  alias: Auto Lock Front Door When Armed Away
+  description: Locks the front door deadbolt whenever the alarm is armed away, if
+    it isn't already locked.
+  triggers:
+  - platform: state
+    entity_id: alarm_control_panel.alarmo
+    to: armed_away
+  conditions:
+  - condition: state
+    entity_id: lock.assure_2_biometric_deadbolt
+    state: unlocked
+  actions:
+  - action: lock.lock
+    target:
+      entity_id: lock.assure_2_biometric_deadbolt
+  - action: notify.mobile_app_pixel_8_pro
+    data:
+      title: Front Door Locked
+      message: The front door has been automatically locked.
+  mode: single
 - id: '1776816464966'
   alias: Front Camera Alert When Armed
   description: Sends a notification when a person or vehicle is detected at the front
