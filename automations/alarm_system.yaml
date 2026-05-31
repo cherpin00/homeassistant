@@ -283,3 +283,31 @@
       data:
         title: Alarm Disarmed
         message: Welcome home. The alarm has been automatically disarmed.
+
+- id: '1780204799500'
+  alias: Auto Arm Home at Night
+  description: Automatically secures the perimeter at night, or 15 minutes after late arrivals/disarming.
+  mode: single
+  trigger:
+    - platform: time
+      at: "22:00:00"
+    - platform: state
+      entity_id: alarm_control_panel.alarmo
+      to: disarmed
+      for:
+        minutes: 15
+  condition:
+    - condition: time
+      after: "21:59:59"
+      before: "06:00:00"
+    - condition: state
+      entity_id: person.cherpin
+      state: home
+  action:
+    - action: alarm_control_panel.alarm_arm_home
+      target:
+        entity_id: alarm_control_panel.alarmo
+    - action: notify.mobile_app_pixel_8_pro
+      data:
+        title: House Armed for the Night
+        message: The perimeter has been automatically secured (Armed Home).
