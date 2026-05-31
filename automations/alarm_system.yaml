@@ -1,0 +1,276 @@
+- id: '1780204796679'
+  alias: Security - Stage 0 (Awareness)
+  description: Immediately captures snapshot, emails, and runs LLM vision when a person is detected on property while armed away.
+  mode: parallel
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.doorbell_property_person_occupancy
+      to: 'on'
+    - platform: state
+      entity_id: binary_sensor.front_left_property_person_occupancy
+      to: 'on'
+    - platform: state
+      entity_id: binary_sensor.front_right_property_person_occupancy
+      to: 'on'
+    - platform: state
+      entity_id: binary_sensor.back_left_property_person_occupancy
+      to: 'on'
+    - platform: state
+      entity_id: binary_sensor.back_right_property_person_occupancy
+      to: 'on'
+  condition:
+    - condition: state
+      entity_id: alarm_control_panel.alarmo
+      state: armed_away
+  variables:
+    cam_map:
+      binary_sensor.doorbell_property_person_occupancy:
+        fluent: camera.doorbell_fluent
+        name: Doorbell
+      binary_sensor.front_left_property_person_occupancy:
+        fluent: camera.front_left_fluent_lens_0
+        name: Front Left
+      binary_sensor.front_right_property_person_occupancy:
+        fluent: camera.front_right_fluent_lens_0
+        name: Front Right
+      binary_sensor.back_left_property_person_occupancy:
+        fluent: camera.living_room_fluent_lens_0
+        name: Back Left
+      binary_sensor.back_right_property_person_occupancy:
+        fluent: camera.back_right_fluent_lens_0
+        name: Back Right
+    camera_entity: "{{ cam_map[trigger.entity_id].fluent }}"
+    camera_name: "{{ cam_map[trigger.entity_id].name }}"
+    event_ts: "{{ now().strftime('%Y%m%d_%H%M%S') }}"
+    image_file: "/media/llmvision/events/{{ camera_name | slugify }}_{{ event_ts }}.jpg"
+    notification_tag: "alert_{{ camera_name | slugify }}"
+  action:
+    - action: camera.snapshot
+      target:
+        entity_id: "{{ camera_entity }}"
+      data:
+        filename: "{{ image_file }}"
+    - action: notify.mobile_app_pixel_8_pro
+      data:
+        title: "{{ camera_name }} Alert"
+        message: Person detected — analyzing...
+        data:
+          tag: "{{ notification_tag }}"
+          image: "/api/camera_proxy/{{ camera_entity }}"
+          channel: Camera Alerts
+          importance: high
+    - action: notify.email_alert
+      data:
+        title: "Awareness Alert: Person at {{ camera_name }}"
+        message: "A person was detected at {{ camera_name }} while armed away."
+        data:
+          images:
+            - "{{ image_file }}"
+    - action: llmvision.image_analyzer
+      data:
+        provider: 01KHDH36JH319D6FP251VYXE80
+        image_file: "{{ image_file }}"
+        message: Describe what is happening in this image in 2-3 sentences. Focus on any people or vehicles detected. Be concise and factual.
+        store_in_timeline: false
+        expose_images: true
+      response_variable: llm_result
+    - action: notify.mobile_app_pixel_8_pro
+      data:
+        title: "{{ camera_name }} Alert"
+        message: "{{ llm_result.response_text | default('Motion detected.') }}"
+        data:
+          tag: "{{ notification_tag }}"
+          image: "{{ llm_result.get('image') or ('/api/camera_proxy/' ~ camera_entity) }}"
+          channel: Camera Alerts
+          importance: high
+
+- id: '1780204797795'
+  alias: Security - Stage 1 (Alert)
+  description: Announces on Alexa and emails when a person lingers for 15s.
+  mode: parallel
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.doorbell_property_person_occupancy
+      to: 'on'
+      for:
+        seconds: 15
+    - platform: state
+      entity_id: binary_sensor.front_left_property_person_occupancy
+      to: 'on'
+      for:
+        seconds: 15
+    - platform: state
+      entity_id: binary_sensor.front_right_property_person_occupancy
+      to: 'on'
+      for:
+        seconds: 15
+    - platform: state
+      entity_id: binary_sensor.back_left_property_person_occupancy
+      to: 'on'
+      for:
+        seconds: 15
+    - platform: state
+      entity_id: binary_sensor.back_right_property_person_occupancy
+      to: 'on'
+      for:
+        seconds: 15
+  condition:
+    - condition: state
+      entity_id: alarm_control_panel.alarmo
+      state: armed_away
+  variables:
+    cam_map:
+      binary_sensor.doorbell_property_person_occupancy:
+        name: Doorbell
+      binary_sensor.front_left_property_person_occupancy:
+        name: Front Left
+      binary_sensor.front_right_property_person_occupancy:
+        name: Front Right
+      binary_sensor.back_left_property_person_occupancy:
+        name: Back Left
+      binary_sensor.back_right_property_person_occupancy:
+        name: Back Right
+    camera_name: "{{ cam_map[trigger.entity_id].name }}"
+  action:
+    - action: script.announce
+      data:
+        message: "Alert: A person has been lingering at the {{ camera_name }} for 15 seconds."
+        type: announce
+    - action: notify.mobile_app_pixel_8_pro
+      data:
+        title: Lingering Alert (15s)
+        message: "A person is lingering at the {{ camera_name }}!"
+        data:
+          channel: Camera Alerts
+          importance: high
+    - action: notify.email_alert
+      data:
+        title: "Alert: Lingering Person at {{ camera_name }}"
+        message: "A person has been lingering at {{ camera_name }} for 15 seconds while armed away."
+
+- id: '1780204799154'
+  alias: Security - Stage 2 (Alarm Trigger)
+  description: Turns ON the Master Siren Toggle when a person lingers for 1m or Alarmo triggers.
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.doorbell_property_person_occupancy
+      to: 'on'
+      for:
+        minutes: 1
+    - platform: state
+      entity_id: binary_sensor.front_left_property_person_occupancy
+      to: 'on'
+      for:
+        minutes: 1
+    - platform: state
+      entity_id: binary_sensor.front_right_property_person_occupancy
+      to: 'on'
+      for:
+        minutes: 1
+    - platform: state
+      entity_id: binary_sensor.back_left_property_person_occupancy
+      to: 'on'
+      for:
+        minutes: 1
+    - platform: state
+      entity_id: binary_sensor.back_right_property_person_occupancy
+      to: 'on'
+      for:
+        minutes: 1
+    - platform: state
+      entity_id: alarm_control_panel.alarmo
+      to: triggered
+  condition:
+    - condition: state
+      entity_id: alarm_control_panel.alarmo
+      state: armed_away
+  action:
+    - action: input_boolean.turn_on
+      target:
+        entity_id: input_boolean.master_siren_toggle
+
+- id: '1780204799287'
+  alias: Security - Disarm Stops Sirens
+  description: Instantly turns OFF the Master Siren Toggle when Alarmo is disarmed.
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: alarm_control_panel.alarmo
+      to: disarmed
+  action:
+    - action: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.master_siren_toggle
+
+- id: '1780204799999'
+  alias: Security - Siren Response ON
+  description: Fires all sirens and notifications when the Master Siren Toggle is turned on.
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: input_boolean.master_siren_toggle
+      to: 'on'
+  action:
+    - action: siren.turn_on
+      target:
+        entity_id:
+          - siren.doorbell_siren
+          - siren.front_left_siren
+          - siren.front_right_siren
+          - siren.living_room_siren
+          - siren.back_right_siren
+    - action: script.announce
+      data:
+        message: Warning! Intruder detected! Authorities have been notified!
+        type: announce
+    - action: notify.mobile_app_pixel_8_pro
+      data:
+        title: CRITICAL ALARM!
+        message: SIRENS ACTIVATED!
+        data:
+          channel: Camera Alerts
+          importance: high
+    - action: notify.email_alert
+      data:
+        title: CRITICAL ALARM TRIGGERED!
+        message: Sirens have been activated. Immediate attention required.
+
+- id: '1780204800000'
+  alias: Security - Siren Response OFF
+  description: Stops all sirens when the Master Siren Toggle is turned off.
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: input_boolean.master_siren_toggle
+      to: 'off'
+  action:
+    - action: siren.turn_off
+      target:
+        entity_id:
+          - siren.doorbell_siren
+          - siren.front_left_siren
+          - siren.front_right_siren
+          - siren.living_room_siren
+          - siren.back_right_siren
+
+- id: '1780204799409'
+  alias: Auto Disarm When Phone Arrives
+  description: Disarms the alarm automatically when the Pixel 8 Pro arrives home.
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: person.cherpin
+      to: home
+  condition:
+    - condition: state
+      entity_id: alarm_control_panel.alarmo
+      state: armed_away
+  action:
+    - action: alarm_control_panel.alarm_disarm
+      target:
+        entity_id: alarm_control_panel.alarmo
+    - action: notify.mobile_app_pixel_8_pro
+      data:
+        title: Alarm Disarmed
+        message: Welcome home. The alarm has been automatically disarmed.

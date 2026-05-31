@@ -6,6 +6,7 @@ frontend:
 
 group: !include groups.yaml
 input_number: !include input_numbers.yaml
+input_boolean: !include input_booleans.yaml
 
 automation: !include_dir_merge_list automations/
 script: !include scripts.yaml
@@ -21,3 +22,17 @@ homeassistant:
   internal_url: http://192.168.72.110:8123
 
 prometheus:
+
+notify:
+  - name: email_alert
+    platform: smtp
+    server: smtp.gmail.com
+    port: 587
+    timeout: 15
+    sender: herpintech@gmail.com
+    encryption: starttls
+    username: herpintech@gmail.com
+    password: !secret gmail_password
+    recipient:
+      - caleb.herpin@gmail.com
+    sender_name: Home Security
