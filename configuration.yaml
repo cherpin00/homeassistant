@@ -36,4 +36,5 @@ notify:
     password: !secret gmail_password
     recipient:
       - caleb.herpin@gmail.com
+      - beccacb3@gmail.com
     sender_name: Home Security
