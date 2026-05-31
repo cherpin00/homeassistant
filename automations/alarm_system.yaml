@@ -123,17 +123,31 @@
   variables:
     cam_map:
       binary_sensor.doorbell_smart_person:
+        fluent: camera.doorbell_fluent
         name: Doorbell
       binary_sensor.front_left_smart_person:
+        fluent: camera.front_left_fluent_lens_0
         name: Front Left
       binary_sensor.front_right_smart_person:
+        fluent: camera.front_right_fluent_lens_0
         name: Front Right
       binary_sensor.back_left_smart_person:
+        fluent: camera.living_room_fluent_lens_0
         name: Back Left
       binary_sensor.back_right_smart_person:
+        fluent: camera.back_right_fluent_lens_0
         name: Back Right
+    camera_entity: "{{ cam_map[trigger.entity_id].fluent }}"
     camera_name: "{{ cam_map[trigger.entity_id].name }}"
+    event_ts: "{{ now().strftime('%Y%m%d_%H%M%S') }}"
+    image_file: "/media/llmvision/events/{{ camera_name | slugify }}_{{ event_ts }}.jpg"
+    notification_tag: "alert_{{ camera_name | slugify }}"
   action:
+    - action: camera.snapshot
+      target:
+        entity_id: "{{ camera_entity }}"
+      data:
+        filename: "{{ image_file }}"
     - action: script.announce
       data:
         message: "Alert: A person has been lingering at the {{ camera_name }} for 15 seconds."
@@ -143,12 +157,17 @@
         title: Lingering Alert (15s)
         message: "A person is lingering at the {{ camera_name }}!"
         data:
+          tag: "{{ notification_tag }}"
+          image: "/api/camera_proxy/{{ camera_entity }}"
           channel: Camera Alerts
           importance: high
     - action: notify.email_alert
       data:
         title: "Alert: Lingering Person at {{ camera_name }}"
         message: "A person has been lingering at {{ camera_name }} for 15 seconds while armed away."
+        data:
+          images:
+            - "{{ image_file }}"
 
 - id: '1780204799154'
   alias: Security - Stage 2 (Alarm Trigger)
