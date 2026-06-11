@@ -51,3 +51,16 @@ all_vanity_lights:
   entities:
     - switch.guest_bath_vanity
     - switch.master_bath_vanity
+
+# Property-wide person occupancy: ON if ANY camera's smart-person sensor is on.
+# Security automations trigger off this single signal so one person crossing
+# multiple cameras produces ONE alert instead of one per camera, and the linger
+# timers (Stage 1/2) stay continuous as the person moves between cameras.
+property_person:
+  name: Property Person
+  entities:
+    - binary_sensor.doorbell_smart_person
+    - binary_sensor.front_left_smart_person
+    - binary_sensor.front_right_smart_person
+    - binary_sensor.back_left_smart_person
+    - binary_sensor.back_right_smart_person

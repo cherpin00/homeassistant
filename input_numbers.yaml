@@ -53,3 +53,15 @@ security_stage_2_alarm_seconds:
   mode: box
   unit_of_measurement: s
   initial: 60
+
+# After an alert fires, suppress further alerts of the same stage for this long.
+# Implemented via mode:single + a trailing delay, so the automation stays "running"
+# (and drops new triggers) for the cooldown window. Set to 0 to disable cooldown.
+security_alert_cooldown_minutes:
+  name: Security Alert Cooldown (Minutes)
+  min: 0
+  max: 60
+  step: 1
+  mode: box
+  unit_of_measurement: min
+  initial: 5

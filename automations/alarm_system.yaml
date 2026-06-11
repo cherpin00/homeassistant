@@ -1,22 +1,15 @@
 - id: '1780204796679'
   alias: Security - Stage 0 (Awareness)
-  description: Immediately captures snapshot, emails, and runs LLM vision when a person is detected on property while armed away.
-  mode: parallel
+  description: >-
+    Instant snapshot + AI summary + email the moment a person appears on the
+    property while armed away. Property-wide (one alert no matter how many
+    cameras see them); snapshots every active camera; mode:single + a trailing
+    delay enforces a cooldown so repeat detections don't spam.
+  mode: single
+  max_exceeded: silent
   trigger:
     - platform: state
-      entity_id: binary_sensor.doorbell_smart_person
-      to: 'on'
-    - platform: state
-      entity_id: binary_sensor.front_left_smart_person
-      to: 'on'
-    - platform: state
-      entity_id: binary_sensor.front_right_smart_person
-      to: 'on'
-    - platform: state
-      entity_id: binary_sensor.back_left_smart_person
-      to: 'on'
-    - platform: state
-      entity_id: binary_sensor.back_right_smart_person
+      entity_id: group.property_person
       to: 'on'
   condition:
     - condition: state
@@ -39,20 +32,38 @@
       binary_sensor.back_right_smart_person:
         fluent: camera.back_right_fluent_lens_0
         name: Back Right
-    camera_entity: "{{ cam_map[trigger.entity_id].fluent }}"
-    camera_name: "{{ cam_map[trigger.entity_id].name }}"
+    # Cameras currently showing a person; fall back to doorbell if none read on.
+    active_ids: "{{ expand('group.property_person') | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list }}"
+    primary_id: "{{ (active_ids + ['binary_sensor.doorbell_smart_person'])[0] }}"
+    camera_name: "{{ cam_map[primary_id].name }}"
+    active_names: >-
+      {% set ns = namespace(n=[]) %}
+      {% for e in active_ids %}{% set ns.n = ns.n + [cam_map[e].name] %}{% endfor %}
+      {{ ns.n | join(', ') if ns.n | count > 0 else camera_name }}
     event_ts: "{{ now().strftime('%Y%m%d_%H%M%S') }}"
-    image_file: "/media/llmvision/events/{{ camera_name | slugify }}_{{ event_ts }}.jpg"
-    notification_tag: "alert_{{ camera_name | slugify }}"
+    # One snapshot per active camera: list of {cam, file}. shots[0] is the primary.
+    shots: >-
+      {% set ns = namespace(s=[]) %}
+      {% set ids = active_ids if active_ids | count > 0 else [primary_id] %}
+      {% for e in ids %}{% set ns.s = ns.s + [{'cam': cam_map[e].fluent, 'file': '/media/llmvision/events/' ~ (cam_map[e].name | slugify) ~ '_' ~ event_ts ~ '.jpg'}] %}{% endfor %}
+      {{ ns.s }}
+    image_files: "{{ shots | map(attribute='file') | list }}"
+    camera_entity: "{{ shots[0].cam }}"
+    image_file: "{{ shots[0].file }}"
+    notification_tag: security_alert
   action:
-    - action: camera.snapshot
-      target:
-        entity_id: "{{ camera_entity }}"
-      data:
-        filename: "{{ image_file }}"
+    # Snapshot every active camera to its own file.
+    - repeat:
+        for_each: "{{ shots }}"
+        sequence:
+          - action: camera.snapshot
+            target:
+              entity_id: "{{ repeat.item.cam }}"
+            data:
+              filename: "{{ repeat.item.file }}"
     - action: notify.mobile_app_pixel_8_pro
       data:
-        title: "{{ camera_name }} Alert"
+        title: "Awareness: Person at {{ active_names }}"
         message: Person detected — analyzing...
         data:
           tag: "{{ notification_tag }}"
@@ -61,56 +72,47 @@
           importance: high
     - action: notify.email_alert
       data:
-        title: "Awareness Alert: Person at {{ camera_name }}"
-        message: "A person was detected at {{ camera_name }} while armed away."
+        title: "Awareness Alert: Person at {{ active_names }}"
+        message: "A person was detected at {{ active_names }} while armed away."
         data:
-          images:
-            - "{{ image_file }}"
+          images: "{{ image_files }}"
     - action: llmvision.image_analyzer
       data:
         provider: 01KHDH36JH319D6FP251VYXE80
-        image_file: "{{ image_file }}"
-        message: Describe what is happening in this image in 2-3 sentences. Focus on any people or vehicles detected. Be concise and factual.
+        # All active-camera snapshots (newline-separated; llmvision splits on \n).
+        image_file: "{{ image_files | join('\n') }}"
+        message: >-
+          These are simultaneous snapshots from {{ image_files | count }} security
+          camera(s) covering the property ({{ active_names }}). Describe what is
+          happening across them in 2-3 sentences, focusing on any people or
+          vehicles. Be concise and factual.
         store_in_timeline: false
         expose_images: true
       response_variable: llm_result
     - action: notify.mobile_app_pixel_8_pro
       data:
-        title: "{{ camera_name }} Alert"
+        title: "Awareness: Person at {{ active_names }}"
         message: "{{ llm_result.response_text | default('Motion detected.') }}"
         data:
           tag: "{{ notification_tag }}"
           image: "{{ llm_result.get('image') or ('/api/camera_proxy/' ~ camera_entity) }}"
           channel: Camera Alerts
           importance: high
+    # Cooldown: stay "running" so mode:single drops repeat detections for this long.
+    - delay:
+        minutes: "{{ states('input_number.security_alert_cooldown_minutes') | int(5) }}"
 
 - id: '1780204797795'
   alias: Security - Stage 1 (Alert)
-  description: Announces on Alexa and emails when a person lingers for 15s.
-  mode: parallel
+  description: >-
+    Snapshot + Alexa announce + push + email when a person lingers anywhere on
+    the property for the Stage-1 delay. Property-wide; snapshots every active
+    camera; mode:single + a trailing delay enforces a cooldown.
+  mode: single
+  max_exceeded: silent
   trigger:
     - platform: state
-      entity_id: binary_sensor.doorbell_smart_person
-      to: 'on'
-      for:
-        seconds: "{{ states('input_number.security_stage_1_alert_seconds') | int(15) }}"
-    - platform: state
-      entity_id: binary_sensor.front_left_smart_person
-      to: 'on'
-      for:
-        seconds: "{{ states('input_number.security_stage_1_alert_seconds') | int(15) }}"
-    - platform: state
-      entity_id: binary_sensor.front_right_smart_person
-      to: 'on'
-      for:
-        seconds: "{{ states('input_number.security_stage_1_alert_seconds') | int(15) }}"
-    - platform: state
-      entity_id: binary_sensor.back_left_smart_person
-      to: 'on'
-      for:
-        seconds: "{{ states('input_number.security_stage_1_alert_seconds') | int(15) }}"
-    - platform: state
-      entity_id: binary_sensor.back_right_smart_person
+      entity_id: group.property_person
       to: 'on'
       for:
         seconds: "{{ states('input_number.security_stage_1_alert_seconds') | int(15) }}"
@@ -137,25 +139,42 @@
       binary_sensor.back_right_smart_person:
         fluent: camera.back_right_fluent_lens_0
         name: Back Right
-    camera_entity: "{{ cam_map[trigger.entity_id].fluent }}"
-    camera_name: "{{ cam_map[trigger.entity_id].name }}"
+    active_ids: "{{ expand('group.property_person') | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list }}"
+    primary_id: "{{ (active_ids + ['binary_sensor.doorbell_smart_person'])[0] }}"
+    camera_name: "{{ cam_map[primary_id].name }}"
+    active_names: >-
+      {% set ns = namespace(n=[]) %}
+      {% for e in active_ids %}{% set ns.n = ns.n + [cam_map[e].name] %}{% endfor %}
+      {{ ns.n | join(', ') if ns.n | count > 0 else camera_name }}
+    linger_seconds: "{{ states('input_number.security_stage_1_alert_seconds') | int(15) }}"
     event_ts: "{{ now().strftime('%Y%m%d_%H%M%S') }}"
-    image_file: "/media/llmvision/events/{{ camera_name | slugify }}_{{ event_ts }}.jpg"
-    notification_tag: "alert_{{ camera_name | slugify }}"
+    shots: >-
+      {% set ns = namespace(s=[]) %}
+      {% set ids = active_ids if active_ids | count > 0 else [primary_id] %}
+      {% for e in ids %}{% set ns.s = ns.s + [{'cam': cam_map[e].fluent, 'file': '/media/llmvision/events/' ~ (cam_map[e].name | slugify) ~ '_' ~ event_ts ~ '.jpg'}] %}{% endfor %}
+      {{ ns.s }}
+    image_files: "{{ shots | map(attribute='file') | list }}"
+    camera_entity: "{{ shots[0].cam }}"
+    image_file: "{{ shots[0].file }}"
+    notification_tag: security_alert
   action:
-    - action: camera.snapshot
-      target:
-        entity_id: "{{ camera_entity }}"
-      data:
-        filename: "{{ image_file }}"
+    # Snapshot every active camera to its own file.
+    - repeat:
+        for_each: "{{ shots }}"
+        sequence:
+          - action: camera.snapshot
+            target:
+              entity_id: "{{ repeat.item.cam }}"
+            data:
+              filename: "{{ repeat.item.file }}"
     - action: script.announce
       data:
-        message: "Alert: A person has been lingering at the {{ camera_name }} for 15 seconds."
+        message: "Alert: A person has been lingering at {{ active_names }} for {{ linger_seconds }} seconds."
         type: announce
     - action: notify.mobile_app_pixel_8_pro
       data:
-        title: Lingering Alert (15s)
-        message: "A person is lingering at the {{ camera_name }}!"
+        title: Lingering Alert
+        message: "A person is lingering at {{ active_names }}!"
         data:
           tag: "{{ notification_tag }}"
           image: "/api/camera_proxy/{{ camera_entity }}"
@@ -163,39 +182,25 @@
           importance: high
     - action: notify.email_alert
       data:
-        title: "Alert: Lingering Person at {{ camera_name }}"
-        message: "A person has been lingering at {{ camera_name }} for 15 seconds while armed away."
+        title: "Alert: Lingering Person at {{ active_names }}"
+        message: "A person has been lingering at {{ active_names }} for {{ linger_seconds }} seconds while the alarm is armed."
         data:
-          images:
-            - "{{ image_file }}"
+          images: "{{ image_files }}"
+    # Cooldown: stay "running" so mode:single drops repeat detections for this long.
+    - delay:
+        minutes: "{{ states('input_number.security_alert_cooldown_minutes') | int(5) }}"
 
 - id: '1780204799154'
   alias: Security - Stage 2 (Alarm Trigger)
-  description: Turns ON the Master Siren Toggle when a person lingers for 1m or Alarmo triggers.
+  description: >-
+    Turns ON the Master Siren Toggle when a person lingers anywhere on the
+    property for the Stage-2 delay, or when Alarmo itself trips. The
+    property-wide group keeps the linger timer continuous as the person moves
+    between cameras (a per-camera timer would reset on every hand-off).
   mode: single
   trigger:
     - platform: state
-      entity_id: binary_sensor.doorbell_smart_person
-      to: 'on'
-      for:
-        seconds: "{{ states('input_number.security_stage_2_alarm_seconds') | int(60) }}"
-    - platform: state
-      entity_id: binary_sensor.front_left_smart_person
-      to: 'on'
-      for:
-        seconds: "{{ states('input_number.security_stage_2_alarm_seconds') | int(60) }}"
-    - platform: state
-      entity_id: binary_sensor.front_right_smart_person
-      to: 'on'
-      for:
-        seconds: "{{ states('input_number.security_stage_2_alarm_seconds') | int(60) }}"
-    - platform: state
-      entity_id: binary_sensor.back_left_smart_person
-      to: 'on'
-      for:
-        seconds: "{{ states('input_number.security_stage_2_alarm_seconds') | int(60) }}"
-    - platform: state
-      entity_id: binary_sensor.back_right_smart_person
+      entity_id: group.property_person
       to: 'on'
       for:
         seconds: "{{ states('input_number.security_stage_2_alarm_seconds') | int(60) }}"
@@ -203,11 +208,15 @@
       entity_id: alarm_control_panel.alarmo
       to: triggered
   condition:
+    # 'triggered' must be allowed here: when the Alarmo-triggered trigger fires,
+    # the panel state IS 'triggered', so without it the alarm path would be a no-op.
+    # The camera-linger trigger still requires an armed state (away/home).
     - condition: state
       entity_id: alarm_control_panel.alarmo
       state:
         - armed_away
         - armed_home
+        - triggered
   action:
     - action: input_boolean.turn_on
       target:
