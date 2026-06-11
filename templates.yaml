@@ -53,3 +53,59 @@
         {% else %}
           {{ states('binary_sensor.back_right_person') }}
         {% endif %}
+
+# Smart camera selectors: each resolves to the entity_id of the best available
+# camera feed for a given view. Mirrors the *_smart_person detection fallback —
+# prefer Frigate (camera.<name>), fall back to the Reolink substream when Frigate
+# is unavailable/unknown or the prefer_frigate_sensors override is off. Security
+# automations snapshot / proxy whatever entity_id this returns. See CLAUDE.md.
+- sensor:
+    - name: "Doorbell Smart Camera"
+      unique_id: doorbell_smart_camera
+      icon: mdi:cctv
+      state: >
+        {% if is_state('input_boolean.prefer_frigate_sensors', 'on') and states('camera.doorbell') not in ['unavailable', 'unknown'] %}
+          camera.doorbell
+        {% else %}
+          camera.doorbell_fluent
+        {% endif %}
+
+    - name: "Front Left Smart Camera"
+      unique_id: front_left_smart_camera
+      icon: mdi:cctv
+      state: >
+        {% if is_state('input_boolean.prefer_frigate_sensors', 'on') and states('camera.front_left') not in ['unavailable', 'unknown'] %}
+          camera.front_left
+        {% else %}
+          camera.front_left_fluent_lens_0
+        {% endif %}
+
+    - name: "Front Right Smart Camera"
+      unique_id: front_right_smart_camera
+      icon: mdi:cctv
+      state: >
+        {% if is_state('input_boolean.prefer_frigate_sensors', 'on') and states('camera.front_right') not in ['unavailable', 'unknown'] %}
+          camera.front_right
+        {% else %}
+          camera.front_right_fluent_lens_0
+        {% endif %}
+
+    - name: "Back Left Smart Camera"
+      unique_id: back_left_smart_camera
+      icon: mdi:cctv
+      state: >
+        {% if is_state('input_boolean.prefer_frigate_sensors', 'on') and states('camera.back_left') not in ['unavailable', 'unknown'] %}
+          camera.back_left
+        {% else %}
+          camera.living_room_fluent_lens_0
+        {% endif %}
+
+    - name: "Back Right Smart Camera"
+      unique_id: back_right_smart_camera
+      icon: mdi:cctv
+      state: >
+        {% if is_state('input_boolean.prefer_frigate_sensors', 'on') and states('camera.back_right') not in ['unavailable', 'unknown'] %}
+          camera.back_right
+        {% else %}
+          camera.back_right_fluent_lens_0
+        {% endif %}

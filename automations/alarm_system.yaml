@@ -16,21 +16,24 @@
       entity_id: alarm_control_panel.alarmo
       state: armed_away
   variables:
+    # Each entry's `camera` is a smart-camera selector (Frigate preferred,
+    # Reolink fallback) — resolve with states() to get the live entity_id.
+    # See sensor.*_smart_camera in templates.yaml.
     cam_map:
       binary_sensor.doorbell_smart_person:
-        fluent: camera.doorbell_fluent
+        camera: sensor.doorbell_smart_camera
         name: Doorbell
       binary_sensor.front_left_smart_person:
-        fluent: camera.front_left_fluent_lens_0
+        camera: sensor.front_left_smart_camera
         name: Front Left
       binary_sensor.front_right_smart_person:
-        fluent: camera.front_right_fluent_lens_0
+        camera: sensor.front_right_smart_camera
         name: Front Right
       binary_sensor.back_left_smart_person:
-        fluent: camera.living_room_fluent_lens_0
+        camera: sensor.back_left_smart_camera
         name: Back Left
       binary_sensor.back_right_smart_person:
-        fluent: camera.back_right_fluent_lens_0
+        camera: sensor.back_right_smart_camera
         name: Back Right
     # Cameras currently showing a person; fall back to doorbell if none read on.
     active_ids: "{{ expand('group.property_person') | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list }}"
@@ -45,7 +48,7 @@
     shots: >-
       {% set ns = namespace(s=[]) %}
       {% set ids = active_ids if active_ids | count > 0 else [primary_id] %}
-      {% for e in ids %}{% set ns.s = ns.s + [{'cam': cam_map[e].fluent, 'file': '/media/llmvision/events/' ~ (cam_map[e].name | slugify) ~ '_' ~ event_ts ~ '.jpg'}] %}{% endfor %}
+      {% for e in ids %}{% set ns.s = ns.s + [{'cam': states(cam_map[e].camera), 'file': '/media/llmvision/events/' ~ (cam_map[e].name | slugify) ~ '_' ~ event_ts ~ '.jpg'}] %}{% endfor %}
       {{ ns.s }}
     image_files: "{{ shots | map(attribute='file') | list }}"
     camera_entity: "{{ shots[0].cam }}"
@@ -123,21 +126,24 @@
         - armed_away
         - armed_home
   variables:
+    # Each entry's `camera` is a smart-camera selector (Frigate preferred,
+    # Reolink fallback) — resolve with states() to get the live entity_id.
+    # See sensor.*_smart_camera in templates.yaml.
     cam_map:
       binary_sensor.doorbell_smart_person:
-        fluent: camera.doorbell_fluent
+        camera: sensor.doorbell_smart_camera
         name: Doorbell
       binary_sensor.front_left_smart_person:
-        fluent: camera.front_left_fluent_lens_0
+        camera: sensor.front_left_smart_camera
         name: Front Left
       binary_sensor.front_right_smart_person:
-        fluent: camera.front_right_fluent_lens_0
+        camera: sensor.front_right_smart_camera
         name: Front Right
       binary_sensor.back_left_smart_person:
-        fluent: camera.living_room_fluent_lens_0
+        camera: sensor.back_left_smart_camera
         name: Back Left
       binary_sensor.back_right_smart_person:
-        fluent: camera.back_right_fluent_lens_0
+        camera: sensor.back_right_smart_camera
         name: Back Right
     active_ids: "{{ expand('group.property_person') | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list }}"
     primary_id: "{{ (active_ids + ['binary_sensor.doorbell_smart_person'])[0] }}"
@@ -151,7 +157,7 @@
     shots: >-
       {% set ns = namespace(s=[]) %}
       {% set ids = active_ids if active_ids | count > 0 else [primary_id] %}
-      {% for e in ids %}{% set ns.s = ns.s + [{'cam': cam_map[e].fluent, 'file': '/media/llmvision/events/' ~ (cam_map[e].name | slugify) ~ '_' ~ event_ts ~ '.jpg'}] %}{% endfor %}
+      {% for e in ids %}{% set ns.s = ns.s + [{'cam': states(cam_map[e].camera), 'file': '/media/llmvision/events/' ~ (cam_map[e].name | slugify) ~ '_' ~ event_ts ~ '.jpg'}] %}{% endfor %}
       {{ ns.s }}
     image_files: "{{ shots | map(attribute='file') | list }}"
     camera_entity: "{{ shots[0].cam }}"
