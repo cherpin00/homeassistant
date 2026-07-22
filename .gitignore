@@ -16,7 +16,8 @@ secrets.yaml
 # OS junk
 .DS_Store
 
-custom_components/hacs/hacs_frontend/
+# HACS-managed custom components (reinstalled by HACS, not tracked in git)
+custom_components/
 
 __pycache__/
 *.pyc
@@ -28,3 +29,13 @@ __pycache__/
 gitpull_rsa
 gitpull_rsa.pub
 
+# Private keys
+tesla_fleet.key
+
+# HA runtime data files
+.cache/
+.shopping_list.json
+
+# Pyscript runtime state
+pyscript/memory.json
+pyscript/schedule.json
