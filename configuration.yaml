@@ -17,10 +17,11 @@ http:
   use_x_forwarded_for: true
   trusted_proxies:
     - 192.168.72.0/24
+    - 192.168.98.0/24
 
 homeassistant:
-  external_url: https://ha.herpin.xyz
-  internal_url: http://192.168.72.110:8123
+  external_url: https://ha.stone.herpin.xyz
+  internal_url: http://192.168.98.99:8123
 
 prometheus:
 
