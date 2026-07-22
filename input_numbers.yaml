@@ -65,3 +65,26 @@ security_alert_cooldown_minutes:
   mode: box
   unit_of_measurement: min
   initial: 5
+
+# How many seconds before a stage deadline to submit footage to the LLM.
+# Set high enough that the LLM response reliably returns before the stage fires.
+# Increase if you see "analysis unavailable" in notifications.
+security_llm_lead_time_seconds:
+  name: Security LLM Lead Time (Seconds)
+  min: 3
+  max: 30
+  step: 1
+  mode: box
+  unit_of_measurement: s
+  initial: 8
+
+# How often (in seconds) to snapshot the primary camera during frame collection.
+# Lower = more frames and better LLM context; higher = fewer API frames sent.
+security_frame_interval_seconds:
+  name: Security Frame Interval (Seconds)
+  min: 5
+  max: 60
+  step: 5
+  mode: box
+  unit_of_measurement: s
+  initial: 10
