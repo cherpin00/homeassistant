@@ -1,0 +1,21 @@
+# Counter helpers for tesla-precond observability.
+# Include via `counter: !include pyscript/counters.yaml` or merge under `counter:`
+# in configuration.yaml. HA's Prometheus integration exports each as a gauge-typed
+# series `homeassistant_counter_value{entity="counter.<name>"}`; `restore: true`
+# preserves the value across restarts so Grafana `increase()` stays meaningful.
+tesla_error_calendar_api: {name: tesla_error_calendar_api, restore: true}
+tesla_error_travel:       {name: tesla_error_travel, restore: true}
+tesla_error_tesla_command: {name: tesla_error_tesla_command, restore: true}
+tesla_error_unexpected:   {name: tesla_error_unexpected, restore: true}
+tesla_fire_outbound:      {name: tesla_fire_outbound, restore: true}
+tesla_fire_return:        {name: tesla_fire_return, restore: true}
+tesla_skip_battery:       {name: tesla_skip_battery, restore: true}
+tesla_skip_temp:          {name: tesla_skip_temp, restore: true}
+tesla_skip_colocation:    {name: tesla_skip_colocation, restore: true}
+tesla_skip_moving:        {name: tesla_skip_moving, restore: true}
+tesla_skip_stale_gps:     {name: tesla_skip_stale_gps, restore: true}
+tesla_skip_already_conditioning: {name: tesla_skip_already_conditioning, restore: true}
+tesla_resolve_location_field: {name: tesla_resolve_location_field, restore: true}
+tesla_resolve_remembered: {name: tesla_resolve_remembered, restore: true}
+tesla_resolve_asked:      {name: tesla_resolve_asked, restore: true}
+tesla_resolve_gave_up:    {name: tesla_resolve_gave_up, restore: true}
