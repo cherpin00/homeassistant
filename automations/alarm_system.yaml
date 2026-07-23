@@ -95,21 +95,28 @@
               entity_id: "{{ repeat.item.cam }}"
             data:
               filename: "{{ repeat.item.file }}"
-    - action: notify.mobile_app_pixel_8_pro
-      data:
-        title: "Person at {{ active_names }}"
-        message: "Detected — collecting footage for AI analysis..."
-        data:
-          tag: "{{ notification_tag }}"
-          image: "/api/camera_proxy/{{ camera_entity }}"
-          channel: Camera Alerts
-          importance: high
-    - action: notify.email_alert
-      data:
-        title: "Security Alert: Person detected at {{ active_names }}"
-        message: "Person first detected at {{ awareness_time }} at {{ active_names }}."
-        data:
-          images: "{{ init_files }}"
+    # Only notify at awareness stage when away — armed_home gets Stage 1/2 alerts
+    # only (otherwise every passerby pings you while you're home).
+    - if:
+        - condition: state
+          entity_id: alarm_control_panel.alarmo
+          state: armed_away
+      then:
+        - action: notify.mobile_app_pixel_8_pro
+          data:
+            title: "Person at {{ active_names }}"
+            message: "Detected — collecting footage for AI analysis..."
+            data:
+              tag: "{{ notification_tag }}"
+              image: "/api/camera_proxy/{{ camera_entity }}"
+              channel: Camera Alerts
+              importance: high
+        - action: notify.email_alert
+          data:
+            title: "Security Alert: Person detected at {{ active_names }}"
+            message: "Person first detected at {{ awareness_time }} at {{ active_names }}."
+            data:
+              images: "{{ init_files }}"
 
     # ── STAGE 1: COLLECT → PAD → LLM → ALERT ────────────────────────────────
     # Collect primary-camera frames every frame_interval seconds until
