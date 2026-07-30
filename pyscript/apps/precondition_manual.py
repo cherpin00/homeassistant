@@ -7,8 +7,8 @@
 # Completely decoupled from the calendar-based tesla_precondition app.
 
 import json
-import uuid
 from datetime import datetime, timezone, timedelta
+import file_io
 
 CFG = pyscript.app_config
 CLIMATE_ENTITY = CFG.get("climate_entity", "climate.caleb_s_model_y_climate")
@@ -23,16 +23,21 @@ def _now():
 
 
 def _read():
+    text = file_io.read_text(DATA_FILE)
+    if not text:
+        return {"schedules": []}
     try:
-        with open(DATA_FILE, "r") as f:
-            return json.loads(f.read())
+        return json.loads(text)
     except Exception:
         return {"schedules": []}
 
 
 def _write(data):
-    with open(DATA_FILE, "w") as f:
-        f.write(json.dumps(data, indent=2))
+    file_io.write_text(DATA_FILE, json.dumps(data, indent=2))
+
+
+def _new_id():
+    return _now().strftime("%H%M%S%f")[:10]
 
 
 @service
@@ -42,7 +47,7 @@ def precondition_manual_schedule(delay_minutes=None, **kwargs):
         return {"error": "delay_minutes is required"}
 
     fire_at = _now() + timedelta(minutes=int(delay_minutes))
-    schedule_id = str(uuid.uuid4())[:8]
+    schedule_id = _new_id()
 
     data = _read()
     data["schedules"].append({
