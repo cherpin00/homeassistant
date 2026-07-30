@@ -23,3 +23,5 @@ precond_manual_fired:     {name: precond_manual_fired, restore: true}
 precond_climate_call_total: {name: precond_climate_call_total, restore: true}
 precond_success:          {name: precond_success, restore: true}
 precond_failed:           {name: precond_failed, restore: true}
+precond_scheduled:        {name: precond_scheduled, restore: true}
+precond_cancelled:        {name: precond_cancelled, restore: true}

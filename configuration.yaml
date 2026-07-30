@@ -64,4 +64,17 @@ pyscript:
       lookahead_hours: 12
       loop_interval_min: 2
       unanswered_ask_default: skip
+    precondition_manual:
+      climate_entity: climate.caleb_s_model_y_climate
+      notify_target: pixel_8_pro
+      max_retries: 3
+      retry_delay_sec: 15
 counter: !include pyscript/counters.yaml
+
+rest_command:
+  tasker:
+    url: 'http://{{ip_address}}:{{port}}/{{path}}'
+    method: POST
+    verify_ssl: false
+    payload: "{{ event }}"
+    content_type: 'application/json; charset=utf-8'
