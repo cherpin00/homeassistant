@@ -57,3 +57,21 @@ The security logic is structured into distinct escalation tiers inside `automati
 - **Validation**: No local validation tooling. Test changes by loading them in HA (Settings → YAML → Check Configuration, or restart HA).
 - **Secrets**: Never commit `secrets.yaml`. Use `!secret key_name` references in config files.
 - **Custom components**: Managed by HACS. Don't manually edit files under `custom_components/` — they get overwritten on updates.
+
+## Pyscript Apps (`pyscript/apps/`)
+
+Pyscript runs in an async event loop. Key gotchas:
+
+**File I/O must use `file_io` module** — raw `open()` silently fails on the event loop:
+```python
+import file_io  # /config/pyscript/modules/file_io.py
+text = file_io.read_text("/config/pyscript/myapp.json")   # blocks correctly in executor
+file_io.write_text("/config/pyscript/myapp.json", text)   # atomic write via .tmp
+```
+`@pyscript_compile` / `@pyscript_executor` decorators only work in modules (not apps) — that's why `file_io.py` is a module.
+
+**Current apps:**
+- `apps/precondition_manual.py` — manual Tesla precondition scheduling; uses `file_io` for its JSON store at `pyscript/precondition_manual.json`
+- `apps/tesla_precondition.py` — calendar-based scheduling (dry_run: true); uses `tesla_precondition/persist.py` for file I/O
+
+**Reload without restart:** `hass.services.call("pyscript", "reload")` or via HA Developer Tools → Services.
