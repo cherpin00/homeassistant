@@ -72,3 +72,36 @@ announce:
       message: '{{ message }}'
       data:
         type: '{{ type | default(''announce'') }}'
+
+precondition_car_delayed:
+  alias: Precondition Car (Delayed)
+  mode: parallel
+  fields:
+    delay_minutes:
+      name: Delay Minutes
+      description: Minutes to wait before preconditioning
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 480
+  sequence:
+    - delay:
+        minutes: '{{ delay_minutes | int }}'
+    - action: climate.turn_on
+      continue_on_error: true
+      target:
+        entity_id: climate.caleb_s_model_y_climate
+    - if:
+        - condition: template
+          value_template: '{{ last_error is defined }}'
+      then:
+        - action: notify.mobile_app_pixel_8_pro
+          data:
+            title: 'Precondition failed'
+            message: '{{ last_error }}'
+      else:
+        - action: notify.mobile_app_pixel_8_pro
+          data:
+            title: 'Car is preconditioning'
+            message: 'Climate turned on'
