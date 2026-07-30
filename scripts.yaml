@@ -88,6 +88,9 @@ precondition_car_delayed:
   sequence:
     - delay:
         minutes: '{{ delay_minutes | int }}'
+    - action: counter.increment
+      target:
+        entity_id: counter.precond_manual_fired
     - variables:
         attempt: 0
         precond_success: false
@@ -99,6 +102,9 @@ precondition_car_delayed:
         sequence:
           - variables:
               attempt: '{{ attempt + 1 }}'
+          - action: counter.increment
+            target:
+              entity_id: counter.precond_climate_call_total
           - action: climate.turn_on
             continue_on_error: true
             target:
@@ -122,11 +128,17 @@ precondition_car_delayed:
         - condition: template
           value_template: '{{ precond_success }}'
       then:
+        - action: counter.increment
+          target:
+            entity_id: counter.precond_success
         - action: notify.mobile_app_pixel_8_pro
           data:
             title: Car is preconditioning
             message: 'Climate turned on (attempt {{ attempt }} of 3)'
       else:
+        - action: counter.increment
+          target:
+            entity_id: counter.precond_failed
         - action: notify.mobile_app_pixel_8_pro
           data:
             title: Precondition failed

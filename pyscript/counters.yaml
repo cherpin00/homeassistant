@@ -19,3 +19,7 @@ tesla_resolve_location_field: {name: tesla_resolve_location_field, restore: true
 tesla_resolve_remembered: {name: tesla_resolve_remembered, restore: true}
 tesla_resolve_asked:      {name: tesla_resolve_asked, restore: true}
 tesla_resolve_gave_up:    {name: tesla_resolve_gave_up, restore: true}
+precond_manual_fired:     {name: precond_manual_fired, restore: true}
+precond_climate_call_total: {name: precond_climate_call_total, restore: true}
+precond_success:          {name: precond_success, restore: true}
+precond_failed:           {name: precond_failed, restore: true}
