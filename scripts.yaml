@@ -88,20 +88,46 @@ precondition_car_delayed:
   sequence:
     - delay:
         minutes: '{{ delay_minutes | int }}'
-    - action: climate.turn_on
-      continue_on_error: true
-      target:
-        entity_id: climate.caleb_s_model_y_climate
+    - variables:
+        attempt: 0
+        precond_success: false
+        precond_error: Unknown error
+    - repeat:
+        while:
+          - condition: template
+            value_template: '{{ not precond_success and attempt < 3 }}'
+        sequence:
+          - variables:
+              attempt: '{{ attempt + 1 }}'
+          - action: climate.turn_on
+            continue_on_error: true
+            target:
+              entity_id: climate.caleb_s_model_y_climate
+          - if:
+              - condition: template
+                value_template: '{{ last_error is not defined }}'
+            then:
+              - variables:
+                  precond_success: true
+            else:
+              - variables:
+                  precond_error: '{{ last_error }}'
+              - if:
+                  - condition: template
+                    value_template: '{{ attempt < 3 }}'
+                then:
+                  - delay:
+                      seconds: 15
     - if:
         - condition: template
-          value_template: '{{ last_error is defined }}'
+          value_template: '{{ precond_success }}'
       then:
         - action: notify.mobile_app_pixel_8_pro
           data:
-            title: 'Precondition failed'
-            message: '{{ last_error }}'
+            title: Car is preconditioning
+            message: 'Climate turned on (attempt {{ attempt }} of 3)'
       else:
         - action: notify.mobile_app_pixel_8_pro
           data:
-            title: 'Car is preconditioning'
-            message: 'Climate turned on'
+            title: Precondition failed
+            message: 'Failed after 3 attempts: {{ precond_error }}'
