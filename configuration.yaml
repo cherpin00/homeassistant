@@ -82,7 +82,7 @@ rest_command:
 lovelace:
   mode: storage
   dashboards:
-    tesla:
+    tesla-car:
       mode: yaml
       filename: dashboards/tesla.yaml
       title: Tesla
