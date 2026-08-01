@@ -78,3 +78,14 @@ rest_command:
     verify_ssl: false
     payload: "{{ event }}"
     content_type: 'application/json; charset=utf-8'
+
+lovelace:
+  mode: storage
+  dashboards:
+    tesla:
+      mode: yaml
+      filename: dashboards/tesla.yaml
+      title: Tesla
+      icon: mdi:car
+      show_in_sidebar: true
+      require_admin: false

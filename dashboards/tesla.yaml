@@ -1,0 +1,37 @@
+title: Tesla
+views:
+  - title: Car Schedule
+    icon: mdi:car-clock
+    path: car-schedule
+    cards:
+      - type: markdown
+        content: |
+          ## Car Precondition Schedule
+      - type: entities
+        title: Pending Schedules
+        entities:
+          - entity: sensor.precond_manual_pending
+            name: Scheduled count
+        footer:
+          type: markdown
+          content: >
+            {% set times = state_attr('sensor.precond_manual_pending', 'fire_times') %}
+            {% if times and times | length > 0 %}
+            **Scheduled for:**
+            {% for t in times %}
+            - {{ (t | as_timestamp) | timestamp_local }}
+            {% endfor %}
+            {% else %}
+            *No preconditions scheduled.*
+            {% endif %}
+      - type: glance
+        title: Stats (all time)
+        entities:
+          - entity: counter.precond_scheduled
+            name: Scheduled
+          - entity: counter.precond_success
+            name: Successes
+          - entity: counter.precond_failed
+            name: Failures
+          - entity: counter.precond_cancelled
+            name: Cancelled

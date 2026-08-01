@@ -40,9 +40,25 @@ def _new_id():
     return _now().strftime("%H%M%S%f")[:10]
 
 
+def _update_sensor():
+    data = _read()
+    schedules = data.get("schedules", [])
+    fire_times = [s["fire_at"] for s in schedules]
+    state.set(
+        "sensor.precond_manual_pending",
+        value=len(schedules),
+        new_attributes={
+            "fire_times": fire_times,
+            "friendly_name": "Precondition Pending",
+            "icon": "mdi:car-clock",
+            "unit_of_measurement": "scheduled",
+        },
+    )
+
+
 @service
 def precondition_manual_schedule(delay_minutes=None, **kwargs):
-    if delay_minutes is None:
+    if delay_minutes is None or int(delay_minutes) < 1:
         log.error("precondition_manual_schedule: delay_minutes is required")
         return {"error": "delay_minutes is required"}
 
@@ -56,6 +72,7 @@ def precondition_manual_schedule(delay_minutes=None, **kwargs):
         "created_at": _now().isoformat(),
     })
     _write(data)
+    _update_sensor()
 
     service.call("counter", "increment", entity_id="counter.precond_scheduled")
     log.info(f"precondition_manual: scheduled {schedule_id} for {fire_at.isoformat()}")
@@ -74,6 +91,7 @@ def precondition_manual_cancel(schedule_id=None, **kwargs):
 
     removed = before - len(data["schedules"])
     _write(data)
+    _update_sensor()
 
     if removed > 0:
         service.call("counter", "increment", entity_id="counter.precond_cancelled")
@@ -85,6 +103,7 @@ def precondition_manual_cancel(schedule_id=None, **kwargs):
 def _tick():
     try:
         _check_schedules()
+        _update_sensor()
     except Exception as e:
         log.error(f"precondition_manual tick error: {e}")
 
@@ -144,4 +163,5 @@ def _on_start():
     if "schedules" not in data:
         _write({"schedules": []})
         data = {"schedules": []}
+    _update_sensor()
     log.info(f"precondition_manual started — {len(data['schedules'])} schedule(s) pending")
