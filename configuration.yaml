@@ -18,6 +18,10 @@ http:
   trusted_proxies:
     - 192.168.72.0/24
     - 192.168.98.0/24
+    # Tailscale CGNAT range. The Prometheus tailscale sidecar gets a
+    # NEW tailnet IP on every pod restart (currently on its 22nd),
+    # so this must be the range, not a pinned address.
+    - 100.64.0.0/10
 
 homeassistant:
   external_url: https://ha.stone.herpin.xyz
@@ -89,3 +93,13 @@ lovelace:
       icon: mdi:car
       show_in_sidebar: true
       require_admin: false
+
+input_number:
+  precond_delay_minutes:
+    name: Precondition Delay
+    min: 1
+    max: 480
+    step: 5
+    unit_of_measurement: min
+    icon: mdi:timer
+    mode: box
