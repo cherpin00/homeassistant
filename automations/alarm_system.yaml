@@ -102,7 +102,7 @@
           entity_id: alarm_control_panel.alarmo
           state: armed_away
       then:
-        - action: notify.mobile_app_pixel_8_pro
+        - action: notify.mobile_app_pixel_10
           data:
             title: "Person at {{ active_names }}"
             message: "Detected — collecting footage for AI analysis..."
@@ -156,7 +156,7 @@
           entity_id: group.property_person
           state: 'on'
       then:
-        - action: notify.mobile_app_pixel_8_pro
+        - action: notify.mobile_app_pixel_10
           data:
             title: "Still here: Person at {{ active_names }}"
             message: "{{ s1_summary }}"
@@ -218,7 +218,7 @@
             - action: input_boolean.turn_on
               target:
                 entity_id: input_boolean.master_siren_toggle
-            - action: notify.mobile_app_pixel_8_pro
+            - action: notify.mobile_app_pixel_10
               data:
                 title: "CRITICAL: Intruder at {{ active_names }}"
                 message: "{{ s2_summary }}"
@@ -299,7 +299,7 @@
       data:
         message: Warning! Intruder detected! Authorities have been notified!
         type: announce
-    - action: notify.mobile_app_pixel_8_pro
+    - action: notify.mobile_app_pixel_10
       data:
         title: CRITICAL ALARM!
         message: SIRENS ACTIVATED!
@@ -345,7 +345,7 @@
     - action: alarm_control_panel.alarm_disarm
       target:
         entity_id: alarm_control_panel.alarmo
-    - action: notify.mobile_app_pixel_8_pro
+    - action: notify.mobile_app_pixel_10
       data:
         title: Alarm Disarmed
         message: Welcome home. The alarm has been automatically disarmed.
@@ -373,7 +373,7 @@
     - action: alarm_control_panel.alarm_arm_home
       target:
         entity_id: alarm_control_panel.alarmo
-    - action: notify.mobile_app_pixel_8_pro
+    - action: notify.mobile_app_pixel_10
       data:
         title: House Armed for the Night
         message: The perimeter has been automatically secured (Armed Home).

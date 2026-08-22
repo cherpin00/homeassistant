@@ -1,32 +1,79 @@
 - id: '1776816463721'
-  alias: Auto Arm Away When Phone Leaves
-  description: Arms the alarm to away mode when the Pixel 8 Pro leaves home and sends
-    a mobile notification
+  alias: Secure House When Phone Leaves
+  description: On departure, locks the deadbolt first and waits for it to confirm,
+    then arms away. The 1-minute debounce filters GPS drift at the zone boundary.
+    Locking is unconditional so it still happens if the alarm is already armed; a
+    jammed lock warns but never blocks arming.
   triggers:
-  - platform: state
+  - trigger: state
     entity_id: person.cherpin
     to: not_home
-  conditions:
-  - condition: state
-    entity_id: alarm_control_panel.alarmo
-    state: disarmed
+    for:
+      minutes: 1
+  conditions: []
   actions:
-  - action: alarm_control_panel.alarm_arm_away
-    target:
-      entity_id: alarm_control_panel.alarmo
-  - action: notify.mobile_app_pixel_8_pro
-    data:
-      title: House Secured
-      message: The alarm has been automatically set to Armed Away.
+  - alias: Lock the deadbolt and confirm before arming
+    if:
+    - condition: state
+      entity_id: lock.assure_2_biometric_deadbolt
+      state: unlocked
+    then:
+    - action: lock.lock
+      target:
+        entity_id: lock.assure_2_biometric_deadbolt
+    - wait_for_trigger:
+      - trigger: state
+        entity_id: lock.assure_2_biometric_deadbolt
+        to: locked
+      timeout: '00:00:30'
+      continue_on_timeout: true
+    - alias: Warn if the bolt never confirmed, but keep going
+      if:
+      - condition: not
+        conditions:
+        - condition: state
+          entity_id: lock.assure_2_biometric_deadbolt
+          state: locked
+      then:
+      - action: notify.mobile_app_pixel_10
+        data:
+          title: Front Door Did Not Lock
+          message: The deadbolt did not confirm locked. Arming anyway.
+      else:
+      - action: notify.mobile_app_pixel_10
+        data:
+          title: Front Door Locked
+          message: The front door has been automatically locked.
+  - alias: Arm away unless the alarm is already away or going off
+    if:
+    - condition: not
+      conditions:
+      - condition: state
+        entity_id: alarm_control_panel.alarmo
+        state:
+        - armed_away
+        - arming
+        - triggered
+    then:
+    - action: alarm_control_panel.alarm_arm_away
+      target:
+        entity_id: alarm_control_panel.alarmo
+    - action: notify.mobile_app_pixel_10
+      data:
+        title: House Secured
+        message: The alarm has been automatically set to Armed Away.
   mode: single
 - id: '1778390547200'
-  alias: Auto Lock Front Door When Armed Away
-  description: Locks the front door deadbolt whenever the alarm is armed away, if
-    it isn't already locked.
+  alias: Auto Lock Front Door When Armed
+  description: Locks the front door deadbolt whenever the alarm arms in any mode,
+    if it isn't already locked. Covers arming paths other than departure, such as
+    the 22:00 armed_home automation and manual arming.
   triggers:
-  - platform: state
+  - trigger: state
     entity_id: alarm_control_panel.alarmo
-    to: armed_away
+    to:
+    - armed_away
+    - armed_home
   conditions:
   - condition: state
     entity_id: lock.assure_2_biometric_deadbolt
@@ -35,8 +82,9 @@
   - action: lock.lock
     target:
       entity_id: lock.assure_2_biometric_deadbolt
-  - action: notify.mobile_app_pixel_8_pro
+  - action: notify.mobile_app_pixel_10
     data:
       title: Front Door Locked
       message: The front door has been automatically locked.
-  mode: single
+  mode: queued
+  max: 5

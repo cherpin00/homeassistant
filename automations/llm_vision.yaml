@@ -35,7 +35,7 @@
         - condition: template
           value_template: "{{ not is_continuation }}"
       then:
-        - action: notify.mobile_app_pixel_8_pro
+        - action: notify.mobile_app_pixel_10
           data:
             title: Motion Detected
             message: Living Room — analyzing...
@@ -331,7 +331,7 @@
         notification_id: "{{ notification_tag }}"
 
     - alias: Step E — Update phone notification with AI result
-      action: notify.mobile_app_pixel_8_pro
+      action: notify.mobile_app_pixel_10
       data:
         title: "{{ llm_result.get('title') or trigger_name }}"
         message: >-
