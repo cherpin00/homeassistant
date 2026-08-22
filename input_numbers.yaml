@@ -99,3 +99,69 @@ precond_delay_minutes:
   unit_of_measurement: min
   icon: mdi:timer
   mode: box
+
+# ── Garage ──────────────────────────────────────────────────────────────────
+# Seconds to wait after the Model Y clears the bay before closing, so the car
+# is off the apron. Re-checked against the safety beam after the delay.
+garage_auto_close_delay_seconds:
+  name: Garage Auto Close Delay (Seconds)
+  min: 5
+  max: 120
+  step: 5
+  mode: box
+  unit_of_measurement: s
+  initial: 25
+
+# How long the door may stand open before the first "left open" alert.
+garage_open_alert_minutes:
+  name: Garage Left Open Alert (Minutes)
+  min: 1
+  max: 120
+  step: 1
+  mode: box
+  unit_of_measurement: min
+  initial: 15
+
+# Gap between repeat reminders while the door stays open.
+garage_reminder_interval_minutes:
+  name: Garage Reminder Interval (Minutes)
+  min: 5
+  max: 120
+  step: 5
+  mode: box
+  unit_of_measurement: min
+  initial: 15
+
+# After an auto-open, ignore further approach triggers for this long. This is
+# what absorbs GPS flapping around the threshold.
+garage_auto_open_cooldown_minutes:
+  name: Garage Auto Open Cooldown (Minutes)
+  min: 1
+  max: 60
+  step: 1
+  mode: box
+  unit_of_measurement: min
+  initial: 10
+
+# Approach radius for auto-open, compared against sensor.home_pixel_10_distance.
+# FEET, not meters - the proximity sensor reports imperial on this instance.
+# 1150 ft is ~350 m, roughly 26 s of warning at 30 mph against a 10.3 s open.
+# Tunable from the UI; the numeric_state trigger reads this entity directly.
+garage_approach_distance_ft:
+  name: Garage Approach Distance (Feet)
+  min: 300
+  max: 5000
+  step: 50
+  mode: box
+  unit_of_measurement: ft
+  initial: 1150
+
+# Hour of day (0-23) at which an still-open garage gets force-closed.
+garage_night_close_hour:
+  name: Garage Night Force Close Hour
+  min: 0
+  max: 23
+  step: 1
+  mode: box
+  unit_of_measurement: h
+  initial: 23

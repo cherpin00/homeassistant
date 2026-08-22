@@ -73,3 +73,78 @@ announce:
       data:
         type: '{{ type | default(''announce'') }}'
 
+
+precond_schedule_from_ui:
+  alias: Schedule Precondition from UI
+  sequence:
+    - service: pyscript.precondition_manual_schedule
+      data:
+        delay_minutes: "{{ states('input_number.precond_delay_minutes') | int }}"
+
+garage_close_safely:
+  alias: Garage - Close Safely
+  description: >-
+    Shared close routine for every garage automation. Refuses to move the door
+    while the opener's safety beam is blocked, confirms the door actually
+    reached closed, and reports failure rather than failing silently.
+  icon: mdi:garage-alert
+  mode: single
+  fields:
+    reason:
+      name: Reason
+      description: Short phrase describing why the door is being closed, used in notifications.
+      example: auto-close after departure
+      required: false
+      selector:
+        text:
+  sequence:
+    - alias: Never move the door while the safety beam is blocked
+      if:
+        - condition: state
+          entity_id: binary_sensor.ratgdo32disco_f9898c_obstruction
+          state: "on"
+      then:
+        - action: notify.mobile_app_pixel_10
+          data:
+            title: Garage NOT Closed
+            message: >-
+              Obstruction detected — leaving the garage open
+              ({{ reason | default('requested', true) }}).
+            data:
+              channel: Garage
+              importance: high
+              tag: garage_fault
+        - stop: Obstruction detected
+    - alias: Nothing to do if it is already shut
+      if:
+        - condition: state
+          entity_id: cover.ratgdo32disco_f9898c_door
+          state: closed
+      then:
+        - stop: Already closed
+    - action: cover.close_cover
+      target:
+        entity_id: cover.ratgdo32disco_f9898c_door
+    - alias: Confirm the door actually reached closed (closing duration is ~14s)
+      wait_for_trigger:
+        - trigger: state
+          entity_id: cover.ratgdo32disco_f9898c_door
+          to: closed
+      timeout: "00:00:30"
+      continue_on_timeout: true
+    - alias: Report a door that did not shut, rather than failing silently
+      if:
+        - condition: template
+          value_template: "{{ not wait.completed }}"
+      then:
+        - action: notify.mobile_app_pixel_10
+          data:
+            title: Garage Failed to Close
+            message: >-
+              Door did not reach closed within 30s
+              ({{ reason | default('requested', true) }}). Currently:
+              {{ states('cover.ratgdo32disco_f9898c_door') }}.
+            data:
+              channel: Garage
+              importance: high
+              tag: garage_fault

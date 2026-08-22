@@ -1,0 +1,266 @@
+# Garage automation subsystem — ratgdo32 disco (device suffix f9898c).
+#
+# Design notes that are easy to get wrong later:
+#
+#   * The Disco's time-of-flight laser points DOWN AT THE BAY, not out the
+#     driveway. `_vehicle_leaving` therefore means "the car left the bay" (a
+#     great auto-close trigger) while `_vehicle_arriving` means "the car is
+#     already inside" and is useless for auto-open. Auto-open has to come from
+#     a phone geofence instead.
+#
+#   * sensor.home_pixel_10_distance is produced by the `proximity` config entry
+#     ("Home") and reports FEET on this instance, not meters.
+#
+#   * Every guard here is advisory. The real last line of defence is the
+#     opener's own photo-eye beam, surfaced as `_obstruction`, which
+#     script.garage_close_safely checks before moving the door.
+
+- id: garage_auto_open_on_approach
+  alias: Garage - Auto Open on Approach
+  description: >-
+    Opens the garage when Caleb's phone closes to within the approach distance
+    while heading home.
+  mode: single
+  triggers:
+    - trigger: numeric_state
+      entity_id: sensor.home_pixel_10_distance
+      below: input_number.garage_approach_distance_ft
+  conditions:
+    - condition: state
+      entity_id: input_boolean.garage_auto_open_enabled
+      state: "on"
+    - condition: state
+      entity_id: cover.ratgdo32disco_f9898c_door
+      state: closed
+    # If the Model Y is already parked in the bay then this arrival is on foot
+    # or in another vehicle, and there is nothing to drive in.
+    - condition: state
+      entity_id: binary_sensor.ratgdo32disco_f9898c_vehicle_detected
+      state: "off"
+    # Only open when actually inbound. This is what kills most GPS flapping.
+    - condition: state
+      entity_id: sensor.home_pixel_10_direction_of_travel
+      state:
+        - towards
+        - arrived
+    - condition: numeric_state
+      entity_id: device_tracker.pixel_10
+      attribute: gps_accuracy
+      below: 100
+  actions:
+    - action: cover.open_cover
+      target:
+        entity_id: cover.ratgdo32disco_f9898c_door
+    - action: notify.mobile_app_pixel_10
+      data:
+        title: Garage Opening
+        message: Welcome home — opening the garage.
+        data:
+          channel: Garage
+          tag: garage_auto_open
+    # Hold the run open so mode:single drops re-triggers for the cooldown
+    # window. Same trick as security_alert_cooldown_minutes in alarm_system.yaml.
+    - alias: Cooldown — absorb GPS flapping around the threshold
+      delay:
+        minutes: "{{ states('input_number.garage_auto_open_cooldown_minutes') | int(10) }}"
+
+- id: garage_auto_close_on_departure
+  alias: Garage - Auto Close on Departure
+  description: >-
+    Closes the garage after the Model Y pulls out of the bay, once the car has
+    had time to clear the apron.
+  mode: single
+  triggers:
+    - trigger: state
+      entity_id: binary_sensor.ratgdo32disco_f9898c_vehicle_leaving
+      to: "on"
+  conditions:
+    - condition: state
+      entity_id: input_boolean.garage_auto_close_enabled
+      state: "on"
+    - condition: not
+      conditions:
+        - condition: state
+          entity_id: cover.ratgdo32disco_f9898c_door
+          state: closed
+  actions:
+    - alias: Let the car clear the apron
+      delay:
+        seconds: "{{ states('input_number.garage_auto_close_delay_seconds') | int(25) }}"
+    - alias: Abort if anything changed during the clearance delay
+      condition: and
+      conditions:
+        - condition: state
+          entity_id: binary_sensor.ratgdo32disco_f9898c_obstruction
+          state: "off"
+        # Car pulled back in — leave the door alone.
+        - condition: state
+          entity_id: binary_sensor.ratgdo32disco_f9898c_vehicle_detected
+          state: "off"
+        - condition: not
+          conditions:
+            - condition: state
+              entity_id: cover.ratgdo32disco_f9898c_door
+              state: closed
+    - action: script.garage_close_safely
+      data:
+        reason: auto-close after departure
+    # The script owns obstruction-abort and close-failure notifications, so
+    # only claim success if the door genuinely reached closed.
+    - if:
+        - condition: state
+          entity_id: cover.ratgdo32disco_f9898c_door
+          state: closed
+      then:
+        - action: notify.mobile_app_pixel_10
+          data:
+            title: Garage Closed
+            message: Closed the garage behind you.
+            data:
+              channel: Garage
+              tag: garage_auto_close
+
+- id: garage_left_open_alert
+  alias: Garage - Left Open Alert
+  description: >-
+    Once the door has been open past the threshold, notify with Close Now /
+    Snooze buttons and keep reminding until it is shut.
+  mode: restart
+  triggers:
+    - trigger: state
+      entity_id: cover.ratgdo32disco_f9898c_door
+      to: open
+  conditions: []
+  actions:
+    - alias: Grace period before the first alert
+      delay:
+        minutes: "{{ states('input_number.garage_open_alert_minutes') | int(15) }}"
+    - repeat:
+        while:
+          - condition: not
+            conditions:
+              - condition: state
+                entity_id: cover.ratgdo32disco_f9898c_door
+                state: closed
+        sequence:
+          - action: notify.mobile_app_pixel_10
+            data:
+              title: Garage Still Open
+              message: >-
+                Open for {{ relative_time(states.cover.ratgdo32disco_f9898c_door.last_changed) }}.
+              data:
+                channel: Garage
+                importance: high
+                tag: garage_open
+                actions:
+                  - action: GARAGE_CLOSE
+                    title: Close Now
+                  - action: GARAGE_SNOOZE
+                    title: Snooze 30m
+          - alias: Wait for a snooze tap, or time out and remind again
+            wait_for_trigger:
+              - trigger: event
+                event_type: mobile_app_notification_action
+                event_data:
+                  action: GARAGE_SNOOZE
+            timeout:
+              minutes: "{{ states('input_number.garage_reminder_interval_minutes') | int(15) }}"
+            continue_on_timeout: true
+          - if:
+              - condition: template
+                value_template: "{{ wait.completed }}"
+            then:
+              # Fixed at 30 minutes on purpose, so it cannot drift out of sync
+              # with the "Snooze 30m" button label.
+              - alias: Snoozed
+                delay:
+                  minutes: 30
+    - alias: Door is shut — clear any lingering alert from the phone
+      action: notify.mobile_app_pixel_10
+      data:
+        message: clear_notification
+        data:
+          tag: garage_open
+
+- id: garage_night_force_close
+  alias: Garage - Night Force Close
+  description: >-
+    Backstop for the door being left open overnight or after the house is armed
+    away. Warns with a Cancel button first, then closes.
+  mode: single
+  triggers:
+    - trigger: time_pattern
+      hours: "/1"
+      minutes: 0
+      seconds: 0
+      id: hourly
+    - trigger: state
+      entity_id: alarm_control_panel.alarmo
+      to: armed_away
+      id: armed_away
+  conditions:
+    - condition: not
+      conditions:
+        - condition: state
+          entity_id: cover.ratgdo32disco_f9898c_door
+          state: closed
+    # The hourly tick only counts at the configured night hour. Arming away
+    # counts at any hour.
+    - condition: or
+      conditions:
+        - condition: trigger
+          id: armed_away
+        - condition: template
+          value_template: >-
+            {{ now().hour == states('input_number.garage_night_close_hour') | int(23) }}
+  actions:
+    - action: notify.mobile_app_pixel_10
+      data:
+        title: Garage Still Open
+        message: Closing the garage in 2 minutes. Tap Cancel to leave it open.
+        data:
+          channel: Garage
+          importance: high
+          tag: garage_night_close
+          actions:
+            - action: GARAGE_CANCEL_CLOSE
+              title: Cancel
+    - wait_for_trigger:
+        - trigger: event
+          event_type: mobile_app_notification_action
+          event_data:
+            action: GARAGE_CANCEL_CLOSE
+      timeout: "00:02:00"
+      continue_on_timeout: true
+    - if:
+        - condition: template
+          value_template: "{{ wait.completed }}"
+      then:
+        - action: notify.mobile_app_pixel_10
+          data:
+            title: Garage Night Close Cancelled
+            message: Leaving the garage open.
+            data:
+              channel: Garage
+              tag: garage_night_close
+        - stop: Cancelled from the notification
+    - action: script.garage_close_safely
+      data:
+        reason: night force-close
+
+- id: garage_notification_close_action
+  alias: Garage - Close From Notification
+  description: >-
+    Handles the Close Now button. Kept separate from the alert loop so the
+    button still works after that automation has exited or been restarted.
+  mode: single
+  triggers:
+    - trigger: event
+      event_type: mobile_app_notification_action
+      event_data:
+        action: GARAGE_CLOSE
+  conditions: []
+  actions:
+    - action: script.garage_close_safely
+      data:
+        reason: closed from notification

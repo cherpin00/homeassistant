@@ -10,3 +10,14 @@ prefer_frigate_sensors:
   name: Prefer Frigate Sensors (Smart Fallback)
   icon: mdi:cctv
   initial: true
+
+# ── Garage ──────────────────────────────────────────────────────────────────
+# Kill switches. Deliberately no `initial:` so a restart restores whatever you
+# last set, rather than silently re-enabling an automation you turned off.
+garage_auto_open_enabled:
+  name: Garage Auto Open Enabled
+  icon: mdi:garage-open-variant
+
+garage_auto_close_enabled:
+  name: Garage Auto Close Enabled
+  icon: mdi:garage-variant
