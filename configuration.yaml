@@ -93,13 +93,3 @@ lovelace:
       icon: mdi:car
       show_in_sidebar: true
       require_admin: false
-
-input_number:
-  precond_delay_minutes:
-    name: Precondition Delay
-    min: 1
-    max: 480
-    step: 5
-    unit_of_measurement: min
-    icon: mdi:timer
-    mode: box

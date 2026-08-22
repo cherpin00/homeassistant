@@ -88,3 +88,14 @@ security_frame_interval_seconds:
   mode: box
   unit_of_measurement: s
   initial: 10
+
+# Delay used by script.precond_schedule_from_ui when calling
+# pyscript.precondition_manual_schedule.
+precond_delay_minutes:
+  name: Precondition Delay
+  min: 1
+  max: 480
+  step: 5
+  unit_of_measurement: min
+  icon: mdi:timer
+  mode: box
