@@ -53,11 +53,11 @@ pyscript:
       calendar_entities: [calendar.caleb_herpin_gmail_com]
       climate_entity: climate.caleb_s_model_y_climate
       car_tracker: device_tracker.caleb_s_model_y_location
-      phone_tracker: device_tracker.pixel_8_pro
+      phone_tracker: person.cherpin
       soc_sensor: sensor.caleb_s_model_y_battery_level
       cabin_temp_sensor: sensor.caleb_s_model_y_inside_temperature
       outside_temp_sensor: sensor.caleb_s_model_y_outside_temperature
-      notify_target: pixel_8_pro
+      notify_target: pixel_10
       travel_provider: waze
       dry_run: true
       battery_floor_pct: 20
@@ -70,7 +70,7 @@ pyscript:
       unanswered_ask_default: skip
     precondition_manual:
       climate_entity: climate.caleb_s_model_y_climate
-      notify_target: pixel_8_pro
+      notify_target: pixel_10
       max_retries: 3
       retry_delay_sec: 15
 counter: !include pyscript/counters.yaml
