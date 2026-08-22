@@ -143,7 +143,7 @@
               data:
                 provider: 01KHDH36JH319D6FP251VYXE80
                 image_file: "{{ comparison_images }}"
-                remember: false
+                store_in_timeline: false
                 message: "{{ enhanced_match_prompt }}"
               response_variable: match_response
             - variables:
@@ -262,7 +262,7 @@
             {% set ns.files = ns.files + [base_path + event_ts + '_f' + (i | string) + '.jpg'] %}
           {% endfor %}
           {{ ns.files | join('\n') }}
-        remember: true
+        store_in_timeline: true
         include_filename: true
         expose_images: true
         generate_title: true
