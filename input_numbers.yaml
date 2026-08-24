@@ -156,6 +156,19 @@ garage_approach_distance_ft:
   unit_of_measurement: ft
   initial: 1150
 
+# Departure radius for auto-close, compared against sensor.home_pixel_10_distance.
+# FEET, same imperial sensor as the approach radius above. Kept well below the
+# 1150 ft approach radius so a normal drive out closes the door quickly, and so
+# GPS jitter near one threshold can never straddle the other.
+garage_departure_distance_ft:
+  name: Garage Departure Distance (Feet)
+  min: 200
+  max: 5000
+  step: 50
+  mode: box
+  unit_of_measurement: ft
+  initial: 750
+
 # Hour of day (0-23) at which an still-open garage gets force-closed.
 garage_night_close_hour:
   name: Garage Night Force Close Hour

@@ -57,20 +57,37 @@ The security logic is structured into distinct escalation tiers inside `automati
 Device suffix `f9898c`. Lives in `automations/garage.yaml` plus
 `script.garage_close_safely` in `scripts.yaml`.
 
-**The laser points at the bay, not the driveway.** The Disco's time-of-flight
-sensor is aimed down at the parking spot, so:
+**The laser points at the bay, not the driveway** — and it is unreliable in
+both directions. The Disco's time-of-flight sensor is aimed down at the
+parking spot, so:
 
-- `binary_sensor.ratgdo32disco_f9898c_vehicle_leaving` = the car left the bay.
-  This is the auto-close trigger — local, instant, no cloud.
 - `binary_sensor.ratgdo32disco_f9898c_vehicle_arriving` = the car is *already
   inside*. Useless for auto-open. Do not wire auto-open to it.
+- `binary_sensor.ratgdo32disco_f9898c_vehicle_leaving` = the car left the bay.
+  It reads correctly in principle but misfires often enough in practice that
+  auto-close was moved off it. Do not wire auto-close back to it.
+- `binary_sensor.ratgdo32disco_f9898c_vehicle_detected` is still consulted, but
+  only as an advisory "is the bay occupied" hint on auto-open.
 
-**Auto-open therefore runs off a phone geofence.** A `proximity` config entry
+**Both directions therefore run off a phone geofence.** A `proximity` config entry
 titled "Home" tracks `device_tracker.pixel_10` against `zone.home` and produces
 `sensor.home_pixel_10_distance` and `sensor.home_pixel_10_direction_of_travel`.
 The distance sensor reports **feet**, not meters — this instance is on imperial.
 `input_number.garage_approach_distance_ft` (default 1150 ft ~ 350 m) is read
 directly by the trigger's `below:`, so the radius is tunable from the UI.
+
+**Auto-close mirrors it.** Primary trigger is a `zone` leave on
+`person.cherpin` / `zone.home` (a first-class push from the companion app, so
+it lands promptly); the backstop is `sensor.home_pixel_10_distance` rising
+above `input_number.garage_departure_distance_ft` (default 750 ft) for the
+times the phone skips the zone-exit event. Departure radius is kept **below**
+the approach radius so jitter around one threshold can never reach the other.
+
+Guards on auto-close: enable toggle, door not closed, `person.cherpin` not
+home, direction of travel not `towards`, and the same `gps_accuracy < 100`
+sentinel check. There is deliberately **no** `_vehicle_detected` guard — the
+trigger means "nobody is home", so a car in the bay is a reason to close, not
+to abort.
 
 Proximity was created via its **config flow**, not YAML, so it needs no restart
 and is not in this repo. Recreate it with

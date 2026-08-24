@@ -3,13 +3,18 @@
 # Design notes that are easy to get wrong later:
 #
 #   * The Disco's time-of-flight laser points DOWN AT THE BAY, not out the
-#     driveway. `_vehicle_leaving` therefore means "the car left the bay" (a
-#     great auto-close trigger) while `_vehicle_arriving` means "the car is
-#     already inside" and is useless for auto-open. Auto-open has to come from
-#     a phone geofence instead.
+#     driveway, and in practice it is unreliable in both directions.
+#     `_vehicle_arriving` only means "a car is already inside", and
+#     `_vehicle_leaving` proved too flaky to hang auto-close on. BOTH
+#     directions now run off the phone geofence; neither ToF sensor is wired
+#     to a trigger. `_vehicle_detected` is still used, but only as an
+#     advisory "is the bay occupied" hint on auto-open.
 #
 #   * sensor.home_pixel_10_distance is produced by the `proximity` config entry
-#     ("Home") and reports FEET on this instance, not meters.
+#     ("Home") and reports FEET on this instance, not meters. Auto-open reads
+#     garage_approach_distance_ft (1150); auto-close reads
+#     garage_departure_distance_ft (750). Keeping departure below approach
+#     means jitter around one threshold can never reach the other.
 #
 #   * Every guard here is advisory. The real last line of defence is the
 #     opener's own photo-eye beam, surfaced as `_obstruction`, which
@@ -67,13 +72,23 @@
 - id: garage_auto_close_on_departure
   alias: Garage - Auto Close on Departure
   description: >-
-    Closes the garage after the Model Y pulls out of the bay, once the car has
-    had time to clear the apron.
+    Closes the garage once Caleb's phone has actually left, mirroring the
+    approach automation. Driven by the geofence, not by the Disco's laser.
   mode: single
   triggers:
-    - trigger: state
-      entity_id: binary_sensor.ratgdo32disco_f9898c_vehicle_leaving
-      to: "on"
+    # Primary. Zone exit is a first-class push from the companion app, so it
+    # lands far sooner than the next periodic location report.
+    - trigger: zone
+      entity_id: person.cherpin
+      zone: zone.home
+      event: leave
+      id: zone_exit
+    # Backstop for the times the phone skips the zone-exit event and simply
+    # reports a new position further out. Mirror of the auto-open trigger.
+    - trigger: numeric_state
+      entity_id: sensor.home_pixel_10_distance
+      above: input_number.garage_departure_distance_ft
+      id: distance
   conditions:
     - condition: state
       entity_id: input_boolean.garage_auto_close_enabled
@@ -83,8 +98,31 @@
         - condition: state
           entity_id: cover.ratgdo32disco_f9898c_door
           state: closed
+    # The geofence itself, restated as a guard so a stale distance reading on
+    # the backstop trigger cannot close the door while someone is still here.
+    - condition: not
+      conditions:
+        - condition: state
+          entity_id: person.cherpin
+          state: home
+    # Inbound GPS jitter can push the distance above the threshold for one
+    # sample. Only "towards" is disqualifying — "stationary"/"unknown" are
+    # normal right after a zone exit and must not block the close.
+    - condition: not
+      conditions:
+        - condition: state
+          entity_id: sensor.home_pixel_10_direction_of_travel
+          state: towards
+    # 100.0 is the sentinel the phone reports on a bad indoor fix.
+    - condition: numeric_state
+      entity_id: device_tracker.pixel_10
+      attribute: gps_accuracy
+      below: 100
   actions:
-    - alias: Let the car clear the apron
+    # Deliberately no vehicle_detected guard here. Unlike the old laser-driven
+    # version, the trigger no longer means "a car moved" — it means "nobody is
+    # home". A car sitting in the bay is then a reason to close, not to abort.
+    - alias: Settle — let a slow roll down the driveway finish
       delay:
         seconds: "{{ states('input_number.garage_auto_close_delay_seconds') | int(25) }}"
     - alias: Abort if anything changed during the clearance delay
@@ -93,10 +131,12 @@
         - condition: state
           entity_id: binary_sensor.ratgdo32disco_f9898c_obstruction
           state: "off"
-        # Car pulled back in — leave the door alone.
-        - condition: state
-          entity_id: binary_sensor.ratgdo32disco_f9898c_vehicle_detected
-          state: "off"
+        # Turned around and came back inside the geofence.
+        - condition: not
+          conditions:
+            - condition: state
+              entity_id: person.cherpin
+              state: home
         - condition: not
           conditions:
             - condition: state
