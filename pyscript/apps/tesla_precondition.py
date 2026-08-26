@@ -240,6 +240,12 @@ def _outbound_fire_at(ev, job, addr, car, sched, now):
     travel = _cached_or_fetch_travel(job, addr, car, sched, now)
     if travel is None:                          # travel API failed -> fixed-lead fallback
         travel = 0
+    elif not core.travel_is_plausible(travel, (ev["start"] - now).total_seconds() / 60):
+        log.warning(f"implausible travel {travel:.0f}min for '{ev['title']}' with "
+                    f"{(ev['start'] - now).total_seconds() / 60:.0f}min until start "
+                    f"(addr={addr!r}) -- ignoring estimate, using fixed lead")
+        _inc("counter.tesla_error_travel")
+        travel = 0
     mid = (CFG["comfort_low_f"] + CFG["comfort_high_f"]) / 2
     outside = car.get("outside_f")
     lead = core.season_lead_min(CFG["precondition_lead_min"],

@@ -49,6 +49,15 @@ def outbound_precondition_at(event_start, travel_min, buffer_min, lead_min):
 def return_precondition_at(event_end, lead_min):
     return event_end - timedelta(minutes=lead_min)
 
+def travel_is_plausible(travel_min, head_start_min):
+    # A geocode miss on a sloppy address can price a 20-minute drive at 581
+    # minutes (Waze did exactly that for "Dell JCc"). An estimate longer than
+    # the time left before the event starts cannot be a route we could still
+    # drive, and feeding it to outbound_precondition_at pushes fire_at hours
+    # into the past -- which fires the moment it is evaluated. Reject it and
+    # let the caller fall back to the fixed lead.
+    return travel_min <= head_start_min
+
 def season_lead_min(base, outside_f, comfort_f):
     delta = abs(outside_f - comfort_f)
     # +1 min lead per 3F beyond a 5F deadband, capped at +15
