@@ -111,6 +111,23 @@ def on_action(**kwargs):
         sched["pending"].setdefault(f"{event_id}::outbound", {})["force"] = True
         persist.write_text(SCHED_PATH, serde.dumps_schedule(sched))
         return
+    if action.startswith("PRECOND_STOP::"):
+        # Sent on the fire notification: "I'm not actually going, turn it back off."
+        # The job is already in `fired`, so this direction will not re-fire. The
+        # return leg stays gated on the car being away from home, which it will not
+        # be if the trip never happened.
+        if CFG["dry_run"]:
+            log.info(f"[dry_run] STOP {action.split('::', 1)[1]}")
+            return
+        try:
+            service.call("climate", "turn_off", entity_id=CFG["climate_entity"], blocking=True)
+            log.info(f"STOPPED preconditioning ({action.split('::', 1)[1]})")
+        except Exception as e:
+            log.error(f"climate turn_off failed: {e}")
+            _inc("counter.tesla_error_tesla_command")
+            service.call("notify", CFG["notify_target"], title="\U0001F697 Couldn't reach car",
+                         message="Tried to stop preconditioning but the command failed.")
+        return
     memory = serde.loads_memory(persist.read_text(MEM_PATH))
     if action.startswith("PRECOND_SKIP::"):
         serde.add_skip_key(memory, action.split("::", 1)[1])
@@ -267,20 +284,43 @@ def _fire(ev, direction, job, car, fired, now, resolve_outcome):
     if resolve_outcome:
         _inc(f"counter.tesla_resolve_{resolve_outcome}")
     if ok:
-        _do_precondition(ev, direction)
+        _do_precondition(ev, direction, car)
     else:
         _inc(f"counter.tesla_skip_{reason}")
         log.info(f"SKIP {ev['title']} ({direction}) reason={reason}")
     fired.add(job)                              # mark handled either way (no re-fire)
 
-def _do_precondition(ev, direction):
+def _precond_detail(ev, direction, car):
+    when = ev["end"] if direction == "return" else ev["start"]
+    bits = [direction, when.strftime("%H:%M")]
+    cabin = (car or {}).get("cabin_f")
+    if cabin is not None:
+        bits.append(f"cabin {cabin:.0f}F")
+    return " · ".join(bits)
+
+def _notify_fire(ev, detail, dry):
+    # Fires were otherwise silent -- log.info only -- so the only way to see what
+    # the app decided was to read the HA log. Send the dry_run variant too, so the
+    # timing can be checked from the phone before it is trusted to command the car.
+    verb = "Would precondition" if dry else "Preconditioning"
+    service.call("notify", CFG["notify_target"],
+        title=f"\U0001F697 {verb}: {ev['title']}",
+        message=detail,
+        data={"actions": [
+            {"action": f"PRECOND_STOP::{ev['id']}", "title": "Stop"},
+        ]})
+
+def _do_precondition(ev, direction, car=None):
     _inc(f"counter.tesla_fire_{direction}")
+    detail = _precond_detail(ev, direction, car)
     if CFG["dry_run"]:
         log.info(f"[dry_run] PRECONDITION {ev['title']} ({direction})")
+        _notify_fire(ev, detail, dry=True)
         return
     try:
         service.call("climate", "turn_on", entity_id=CFG["climate_entity"], blocking=True)
         log.info(f"PRECONDITION {ev['title']} ({direction})")
+        _notify_fire(ev, detail, dry=False)
     except Exception as e:
         log.error(f"climate turn_on failed: {e}")
         _inc("counter.tesla_error_tesla_command")
@@ -292,7 +332,7 @@ def _forced_precondition(ev, direction, job, car, fired):
     # the location-independent guardrails (still honors battery/temp/moving).
     ok, reason = core.guardrail_gate_no_location(car, CFG)
     if ok:
-        _do_precondition(ev, direction)
+        _do_precondition(ev, direction, car)
     else:
         _inc(f"counter.tesla_skip_{reason}")
         log.info(f"SKIP forced {ev['title']} ({direction}) reason={reason}")
