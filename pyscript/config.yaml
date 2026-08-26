@@ -5,7 +5,7 @@ phone_tracker: person.cherpin
 soc_sensor: sensor.caleb_s_model_y_battery_level
 cabin_temp_sensor: sensor.caleb_s_model_y_inside_temperature
 outside_temp_sensor: sensor.caleb_s_model_y_outside_temperature
-notify_target: pixel_10
+notify_target: mobile_app_pixel_10
 travel_provider: waze          # waze | google
 dry_run: true                  # start safe; flip to false after verification
 # thresholds (optional; omit to use DEFAULTS)

@@ -12,7 +12,7 @@ import file_io
 
 CFG = pyscript.app_config
 CLIMATE_ENTITY = CFG.get("climate_entity", "climate.caleb_s_model_y_climate")
-NOTIFY_TARGET   = CFG.get("notify_target", "pixel_10")
+NOTIFY_TARGET   = CFG.get("notify_target", "mobile_app_pixel_10")
 MAX_RETRIES     = int(CFG.get("max_retries", 3))
 RETRY_DELAY_SEC = int(CFG.get("retry_delay_sec", 15))
 DATA_FILE       = "/config/pyscript/precondition_manual.json"

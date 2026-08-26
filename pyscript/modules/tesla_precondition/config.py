@@ -10,7 +10,7 @@ DEFAULTS = {
     "loop_interval_min": 2,
     "unanswered_ask_default": "skip",   # "skip" | "precondition"
     "travel_provider": "waze",          # "waze" | "google"
-    "waze_region": "US",                # US | EU | IL | AU
+    "waze_region": "us",                # lowercase; waze_travel_time accepts au|eu|il|na|us
     "dry_run": False,
 }
 
