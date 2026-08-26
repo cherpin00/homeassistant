@@ -109,3 +109,10 @@
         {% else %}
           camera.back_right_fluent_lens_0
         {% endif %}
+
+- trigger:
+    trigger: event
+    event_type: tasker_event
+  sensor:
+    - name: Tasker State
+      state: "{{trigger.event.data.state}}"
