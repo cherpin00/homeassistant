@@ -43,3 +43,6 @@ pyscript/precondition_manual.json
 
 # Ad-hoc config backups
 configuration.yaml.bak.*
+
+# ssh material for git (persistent across addon rebuilds)
+.ssh/
