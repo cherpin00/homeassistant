@@ -4,26 +4,63 @@ views:
     icon: mdi:car-clock
     path: car-schedule
     cards:
-      - type: markdown
-        content: |
-          ## Car Precondition Schedule
+      - type: entities
+        title: Climate
+        entities:
+          - entity: climate.caleb_s_model_y_climate
+            name: Climate
+          - type: attribute
+            entity: climate.caleb_s_model_y_climate
+            attribute: current_temperature
+            name: Current Temp
+            suffix: °F
+      - type: button
+        name: Toggle Climate
+        icon: mdi:car-defrost-front
+        tap_action:
+          action: call-service
+          service: climate.toggle
+          service_data:
+            entity_id: climate.caleb_s_model_y_climate
+      - type: vertical-stack
+        cards:
+          - type: entities
+            title: Schedule Precondition
+            entities:
+              - entity: input_number.precond_delay_minutes
+                name: Minutes from now
+          - type: button
+            name: Schedule
+            icon: mdi:alarm-plus
+            tap_action:
+              action: call-service
+              service: script.precond_schedule_from_ui
+      - type: button
+        name: Cancel All
+        icon: mdi:cancel
+        tap_action:
+          action: call-service
+          service: pyscript.precondition_manual_cancel
+          confirmation:
+            text: Cancel all scheduled preconditions?
       - type: entities
         title: Pending Schedules
         entities:
           - entity: sensor.precond_manual_pending
             name: Scheduled count
-        footer:
-          type: markdown
-          content: >
-            {% set times = state_attr('sensor.precond_manual_pending', 'fire_times') %}
-            {% if times and times | length > 0 %}
-            **Scheduled for:**
-            {% for t in times %}
-            - {{ (t | as_timestamp) | timestamp_local }}
-            {% endfor %}
-            {% else %}
-            *No preconditions scheduled.*
-            {% endif %}
+      - type: markdown
+        title: Scheduled Times
+        content: |
+          {% set times = state_attr('sensor.precond_manual_pending', 'fire_times') %}
+          {%- if times and times | length > 0 %}
+          {%- for t in times %}
+          {%- set fire_ts = t | as_timestamp %}
+          {%- set mins_left = ((fire_ts - now() | as_timestamp) / 60) | round(0) | int %}
+          - {{ fire_ts | timestamp_local }} (in {{ mins_left }} min)
+          {%- endfor %}
+          {%- else %}
+          *No preconditions scheduled.*
+          {%- endif %}
       - type: glance
         title: Stats (all time)
         entities:
