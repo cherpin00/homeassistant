@@ -91,10 +91,12 @@ def ask_location(key, event_title, event_id):
     service.call("notify", CFG["notify_target"],
         title="🚗 Where is this?",
         message=f"Couldn't locate '{event_title}'.",
+        # Android splits the action row evenly across three buttons, so each label
+        # gets ~10-11 chars before it is ellipsized. Keep them short.
         data={"actions": [
-            {"action": f"PRECOND_ANYWAY::{event_id}", "title": "Precondition anyway"},
+            {"action": f"PRECOND_ANYWAY::{event_id}", "title": "Climate on"},
             {"action": f"PRECOND_SKIP::{key}", "title": "Skip"},
-            {"action": f"PRECOND_ADDR::{key}", "title": "Add location",
+            {"action": f"PRECOND_ADDR::{key}", "title": "Address",
              "behavior": "textInput", "textInputPlaceholder": "Address"},
         ]})
 
