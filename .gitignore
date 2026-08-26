@@ -39,3 +39,7 @@ tesla_fleet.key
 # Pyscript runtime state
 pyscript/memory.json
 pyscript/schedule.json
+pyscript/precondition_manual.json
+
+# Ad-hoc config backups
+configuration.yaml.bak.*
