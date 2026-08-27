@@ -59,7 +59,7 @@ pyscript:
       outside_temp_sensor: sensor.caleb_s_model_y_outside_temperature
       notify_target: mobile_app_pixel_10
       travel_provider: waze
-      dry_run: true
+      dry_run: false
       battery_floor_pct: 20
       comfort_low_f: 60
       comfort_high_f: 75
