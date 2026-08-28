@@ -9,6 +9,7 @@ notify_target: mobile_app_pixel_10
 travel_provider: waze          # waze | google
 dry_run: false                 # live as of 2026-08-26
 # thresholds (optional; omit to use DEFAULTS)
+precondition_lead_min: 5       # cabin reaches the comfort band in <10 min, even from 109F
 battery_floor_pct: 20
 comfort_low_f: 60
 comfort_high_f: 75
