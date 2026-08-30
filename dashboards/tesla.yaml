@@ -5,6 +5,22 @@ views:
     path: car-schedule
     cards:
       - type: entities
+        title: Calendar Preconditioning
+        entities:
+          - entity: input_boolean.tesla_precondition_enabled
+            name: Enabled
+            secondary_info: last-changed
+        footer:
+          type: markdown
+          content: >
+            {% if is_state('input_boolean.tesla_precondition_enabled', 'on') %}
+            Watching the calendar. Fires ~5 min + drive time before you need to
+            leave.
+            {% else %}
+            **Off** — no calendar preconditioning. Manual scheduling below still
+            works.
+            {% endif %}
+      - type: entities
         title: Climate
         entities:
           - entity: climate.caleb_s_model_y_climate

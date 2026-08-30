@@ -188,7 +188,22 @@ def loop():
         log.error(f"loop tick failed: {e}")
         _inc("counter.tesla_error_unexpected")
 
+def _enabled():
+    # Dashboard kill switch. Fail OPEN: a missing or unreadable toggle must not
+    # silently stop preconditioning -- that failure mode (something quietly not
+    # running for weeks) is exactly what this app has already been bitten by.
+    # Only an explicit "off" disables it.
+    ent = CFG.get("enable_toggle")
+    if not ent:
+        return True
+    try:
+        return state.get(ent) != "off"
+    except Exception:
+        return True
+
 def _tick():
+    if not _enabled():
+        return
     now = _now()
     memory = serde.loads_memory(persist.read_text(MEM_PATH))
     sched = serde.loads_schedule(persist.read_text(SCHED_PATH))
@@ -390,3 +405,9 @@ def _on_start():
     if not persist.read_text(SCHED_PATH):
         persist.write_text(SCHED_PATH, serde.dumps_schedule({}))
     log.info("tesla-precond started")
+    # log.info is invisible (custom components default to WARNING), so surface a
+    # disabled kill switch loudly -- otherwise "silently not running" looks
+    # identical to "running fine".
+    if not _enabled():
+        log.warning(f"tesla-precond DISABLED by {CFG['enable_toggle']} "
+                    "-- no calendar preconditioning will run until it is turned on")

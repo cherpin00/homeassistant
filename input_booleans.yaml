@@ -21,3 +21,13 @@ garage_auto_open_enabled:
 garage_auto_close_enabled:
   name: Garage Auto Close Enabled
   icon: mdi:garage-variant
+
+# ── Tesla ───────────────────────────────────────────────────────────────────
+# Kill switch for the calendar-driven preconditioner (pyscript app
+# tesla_precondition). Turn it off to stop the car being woken and cooled for
+# calendar events -- e.g. when it is unplugged and you would rather keep the
+# charge. Does not affect the manual "Schedule Precondition" controls.
+# No `initial:` for the same reason as the garage switches above.
+tesla_precondition_enabled:
+  name: Tesla Calendar Preconditioning
+  icon: mdi:car-clock

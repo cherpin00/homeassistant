@@ -10,6 +10,7 @@ DEFAULTS = {
     "loop_interval_min": 2,
     "unanswered_ask_default": "skip",   # "skip" | "precondition"
     "travel_provider": "waze",          # "waze" | "google"
+    "enable_toggle": "input_boolean.tesla_precondition_enabled",  # "" to disable the check
     "waze_region": "us",                # lowercase; waze_travel_time accepts au|eu|il|na|us
     "dry_run": False,
 }
