@@ -88,12 +88,14 @@ def get_travel_min(origin_latlon, dest_address):
         return None
 
 def ask_location(key, event_title, event_id):
-    service.call("notify", CFG["notify_target"],
+    service.call("script", "notify",
+        audience=CFG.get("notify_audience", "caleb"),
+        severity="warn", category="vehicle", tag_suffix=f"ask_{key}",
         title="🚗 Where is this?",
         message=f"Couldn't locate '{event_title}'.",
         # Android splits the action row evenly across three buttons, so each label
         # gets ~10-11 chars before it is ellipsized. Keep them short.
-        data={"actions": [
+        push_data={"actions": [
             {"action": f"PRECOND_ANYWAY::{event_id}", "title": "Climate on"},
             {"action": f"PRECOND_SKIP::{key}", "title": "Skip"},
             {"action": f"PRECOND_ADDR::{key}", "title": "Address",
@@ -125,7 +127,10 @@ def on_action(**kwargs):
         except Exception as e:
             log.error(f"climate turn_off failed: {e}")
             _inc("counter.tesla_error_tesla_command")
-            service.call("notify", CFG["notify_target"], title="\U0001F697 Couldn't reach car",
+            service.call("script", "notify",
+                         audience=CFG.get("notify_audience", "caleb"),
+                         severity="warn", category="vehicle", tag_suffix="precondition",
+                         title="\U0001F697 Couldn't reach car",
                          message="Tried to stop preconditioning but the command failed.")
         return
     memory = serde.loads_memory(persist.read_text(MEM_PATH))
@@ -318,10 +323,12 @@ def _notify_fire(ev, detail, dry):
     # the app decided was to read the HA log. Send the dry_run variant too, so the
     # timing can be checked from the phone before it is trusted to command the car.
     verb = "Would precondition" if dry else "Preconditioning"
-    service.call("notify", CFG["notify_target"],
+    service.call("script", "notify",
+        audience=CFG.get("notify_audience", "caleb"),
+        severity="info", category="vehicle", tag_suffix=f"fire_{ev['id']}",
         title=f"\U0001F697 {verb}: {ev['title']}",
         message=detail,
-        data={"actions": [
+        push_data={"actions": [
             {"action": f"PRECOND_STOP::{ev['id']}", "title": "Stop"},
         ]})
 
@@ -339,7 +346,9 @@ def _do_precondition(ev, direction, car=None):
     except Exception as e:
         log.error(f"climate turn_on failed: {e}")
         _inc("counter.tesla_error_tesla_command")
-        service.call("notify", CFG["notify_target"], title="🚗 Couldn't reach car",
+        service.call("script", "notify", audience=CFG.get("notify_audience", "caleb"),
+                     severity="warn", category="vehicle", tag_suffix="precondition",
+                     title="🚗 Couldn't reach car",
                      message=f"Preconditioning for {ev['title']} failed.")
 
 def _forced_precondition(ev, direction, job, car, fired):

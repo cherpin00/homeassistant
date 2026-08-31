@@ -12,7 +12,7 @@ import file_io
 
 CFG = pyscript.app_config
 CLIMATE_ENTITY = CFG.get("climate_entity", "climate.caleb_s_model_y_climate")
-NOTIFY_TARGET   = CFG.get("notify_target", "mobile_app_pixel_10")
+NOTIFY_AUDIENCE = CFG.get("notify_audience", "caleb")
 MAX_RETRIES     = int(CFG.get("max_retries", 3))
 RETRY_DELAY_SEC = int(CFG.get("retry_delay_sec", 15))
 DATA_FILE       = "/config/pyscript/precondition_manual.json"
@@ -147,12 +147,14 @@ def _fire(entry):
 
     if success:
         service.call("counter", "increment", entity_id="counter.precond_success")
-        service.call("notify", NOTIFY_TARGET,
+        service.call("script", "notify", audience=NOTIFY_AUDIENCE,
+                     severity="info", category="vehicle", tag_suffix="precondition",
                      title="Car is preconditioning",
                      message=f"Climate turned on (attempt {attempt} of {MAX_RETRIES})")
     else:
         service.call("counter", "increment", entity_id="counter.precond_failed")
-        service.call("notify", NOTIFY_TARGET,
+        service.call("script", "notify", audience=NOTIFY_AUDIENCE,
+                     severity="warn", category="vehicle", tag_suffix="precondition",
                      title="Precondition failed",
                      message=f"Failed after {MAX_RETRIES} attempts: {last_err}")
 

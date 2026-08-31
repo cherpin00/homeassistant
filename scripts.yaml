@@ -74,6 +74,263 @@ announce:
         type: '{{ type | default(''announce'') }}'
 
 
+notify:
+  alias: Notify — Router
+  description: >-
+    Single entry point for every notification in this config. Callers declare
+    intent — who (audience), how loud (severity), what kind (category) — and
+    this script owns the mapping from intent to transports. Nothing else in the
+    repo should call notify.* directly; that way retargeting a notification is
+    a one-word change and the roster stays authoritative.
+
+    Membership lives in notify_roster.yaml, pulled in below via !include.
+  icon: mdi:bell-cog
+  mode: parallel
+  max: 25
+  fields:
+    audience:
+      name: Audience
+      description: Key from notify_roster.yaml.
+      required: true
+      example: house_admins
+      selector:
+        select:
+          options:
+            - house_admins
+            - caleb
+            - becca
+            - dev
+          custom_value: true
+    severity:
+      name: Severity
+      description: >-
+        info = push at normal importance. warn = push at high importance.
+        critical = high-importance push, plus Alexa announce, plus email.
+      required: false
+      default: info
+      selector:
+        select:
+          options:
+            - info
+            - warn
+            - critical
+    category:
+      name: Category
+      description: Sets the Android notification channel and prefixes the tag.
+      required: false
+      default: general
+      selector:
+        select:
+          options:
+            - security
+            - garage
+            - camera
+            - doors
+            - vehicle
+            - dev
+            - general
+    title:
+      name: Title
+      required: false
+      selector:
+        text:
+    message:
+      name: Message
+      description: Pass the literal string `clear_notification` to dismiss a tag.
+      required: true
+      selector:
+        text:
+    alexa_message:
+      name: Alexa message
+      description: Spoken text, when it should differ from the push body.
+      required: false
+      selector:
+        text:
+    email_title:
+      name: Email subject
+      description: Defaults to `title`. Email tolerates far more detail than a
+        push notification, so most security alerts override it.
+      required: false
+      selector:
+        text:
+    email_message:
+      name: Email body
+      description: Defaults to `message`. Use for the full timeline when the
+        push only has room for a summary.
+      required: false
+      selector:
+        text:
+    tag_suffix:
+      name: Tag suffix
+      description: >-
+        Combined with category into the notification tag, e.g. garage + open ->
+        `garage_open`. Same suffix replaces the previous notification in place.
+      required: false
+      selector:
+        text:
+    push_data:
+      name: Push data
+      description: >-
+        Merged over the generated push payload. Use for image, actions,
+        clickAction — anything only the legacy mobile_app API can carry.
+      required: false
+      selector:
+        object:
+    email_images:
+      name: Email images
+      description: List of absolute paths to attach, when email fires.
+      required: false
+      selector:
+        object:
+    force_email:
+      name: Force email
+      description: Send email even below critical severity.
+      required: false
+      default: false
+      selector:
+        boolean:
+    force_alexa:
+      name: Force Alexa
+      description: Announce even below critical severity.
+      required: false
+      default: false
+      selector:
+        boolean:
+  sequence:
+    - variables: !include notify_roster.yaml
+
+    - alias: Fail loudly on an unknown audience rather than dropping silently
+      if:
+        - condition: template
+          value_template: "{{ audience not in audiences }}"
+      then:
+        - action: system_log.write
+          data:
+            level: error
+            logger: script.notify
+            message: >-
+              Unknown audience '{{ audience }}'. Known: {{ audiences.keys() | list | join(', ') }}.
+              Dropped notification: {{ title | default(message) | default('(none)') }}
+        # Hardcoded target on purpose — a fallback that reads the roster is
+        # useless in exactly the case where the roster is what is broken.
+        - action: notify.mobile_app_pixel_10
+          data:
+            title: Notification routing error
+            message: >-
+              Unknown audience '{{ audience }}'. Dropped:
+              {{ title | default(message, true) | default('(no title)', true) }}
+            data:
+              channel: Dev
+              tag: notify_router_error
+        - stop: Unknown audience
+
+    - variables:
+        sev: "{{ severity | default('info', true) }}"
+        cat: "{{ category | default('general', true) }}"
+        aud_def: "{{ audiences[audience] }}"
+        opted_in: >-
+          {% set ns = namespace(l=[]) %}
+          {% for p in aud_def.get('optional', []) %}
+            {% if is_state('input_boolean.notify_' ~ audience ~ '_' ~ p, 'on') %}
+              {% set ns.l = ns.l + [p] %}
+            {% endif %}
+          {% endfor %}
+          {{ ns.l }}
+
+    - variables:
+        who: "{{ (aud_def.get('members', []) + opted_in) | unique | list }}"
+        channel_map:
+          security: Security
+          garage: Garage
+          camera: Camera Alerts
+          doors: Doors & Locks
+          vehicle: Vehicle
+          dev: Dev
+          general: General
+
+    - variables:
+        push_targets: >-
+          {% set ns = namespace(l=[]) %}
+          {% for p in who %}{% set ns.l = ns.l + people[p].get('push', []) %}{% endfor %}
+          {{ ns.l | unique | list }}
+        email_targets: >-
+          {% set ns = namespace(l=[]) %}
+          {% for p in who %}
+            {% if people[p].get('email') %}{% set ns.l = ns.l + [people[p].email] %}{% endif %}
+          {% endfor %}
+          {{ ns.l | unique | list }}
+        alexa_targets: >-
+          {% set ns = namespace(l=[]) %}
+          {% for p in who %}
+            {% if people[p].get('alexa') %}{% set ns.l = ns.l + [people[p].alexa] %}{% endif %}
+          {% endfor %}
+          {{ ns.l | unique | list }}
+
+    - variables:
+        # `clear_notification` is a magic mobile_app message that dismisses a
+        # tag. It must not pick up a channel, a title, or any escalation.
+        is_clear: "{{ (message | default('', true)) == 'clear_notification' }}"
+        tag: "{{ cat ~ '_' ~ (tag_suffix | default('default', true)) }}"
+        importance: "{{ 'high' if sev in ['warn', 'critical'] else 'default' }}"
+        do_alexa: >-
+          {{ (sev == 'critical' or (force_alexa | default(false, true)))
+             and not ((message | default('', true)) == 'clear_notification') }}
+        do_email: >-
+          {{ (sev == 'critical' or (force_email | default(false, true)))
+             and not ((message | default('', true)) == 'clear_notification') }}
+
+    - variables:
+        push_payload: >-
+          {% if is_clear %}
+            {{ {'tag': tag} }}
+          {% else %}
+            {{ {'tag': tag, 'channel': channel_map.get(cat, 'General'),
+                'importance': importance}
+               | combine(push_data | default({}, true)) }}
+          {% endif %}
+
+    - alias: Push — fan out to every device belonging to the audience
+      repeat:
+        for_each: "{{ push_targets }}"
+        sequence:
+          - action: "{{ repeat.item }}"
+            data:
+              title: "{{ title | default('', true) }}"
+              message: "{{ message }}"
+              data: "{{ push_payload }}"
+
+    # Alexa before email on purpose: notify.email_alert blocks for up to the
+    # SMTP timeout (15s), and on a critical alert the spoken warning must not
+    # queue behind a mail server.
+    - alias: Alexa — announce on each person's echo
+      if:
+        - condition: template
+          value_template: "{{ do_alexa and alexa_targets | count > 0 }}"
+      then:
+        - repeat:
+            for_each: "{{ alexa_targets }}"
+            sequence:
+              - action: notify.send_message
+                target:
+                  entity_id: "{{ repeat.item }}"
+                data:
+                  message: "{{ alexa_message | default(message, true) }}"
+
+    - alias: Email — one SMTP call, recipients overridden per audience
+      if:
+        - condition: template
+          value_template: "{{ do_email and email_targets | count > 0 }}"
+      then:
+        - action: notify.email_alert
+          data:
+            title: >-
+              {{ email_title | default(title, true) | default('Home Assistant', true) }}
+            message: "{{ email_message | default(message, true) }}"
+            target: "{{ email_targets }}"
+            data: >-
+              {{ {'images': email_images} if (email_images | default([], true) | count > 0)
+                 else {} }}
+
 precond_schedule_from_ui:
   alias: Schedule Precondition from UI
   sequence:
@@ -104,16 +361,16 @@ garage_close_safely:
           entity_id: binary_sensor.ratgdo32disco_f9898c_obstruction
           state: "on"
       then:
-        - action: notify.mobile_app_pixel_10
+        - action: script.notify
           data:
+            audience: house_admins
+            severity: warn
+            category: garage
+            tag_suffix: fault
             title: Garage NOT Closed
             message: >-
               Obstruction detected — leaving the garage open
               ({{ reason | default('requested', true) }}).
-            data:
-              channel: Garage
-              importance: high
-              tag: garage_fault
         - stop: Obstruction detected
     - alias: Nothing to do if it is already shut
       if:
@@ -137,14 +394,14 @@ garage_close_safely:
         - condition: template
           value_template: "{{ not wait.completed }}"
       then:
-        - action: notify.mobile_app_pixel_10
+        - action: script.notify
           data:
+            audience: house_admins
+            severity: warn
+            category: garage
+            tag_suffix: fault
             title: Garage Failed to Close
             message: >-
               Door did not reach closed within 30s
               ({{ reason | default('requested', true) }}). Currently:
               {{ states('cover.ratgdo32disco_f9898c_door') }}.
-            data:
-              channel: Garage
-              importance: high
-              tag: garage_fault

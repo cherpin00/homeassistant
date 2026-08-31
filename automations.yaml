@@ -35,13 +35,21 @@
           entity_id: lock.assure_2_biometric_deadbolt
           state: locked
       then:
-      - action: notify.mobile_app_pixel_10
+      - action: script.notify
         data:
+          audience: house_admins
+          severity: warn
+          category: doors
+          tag_suffix: lock
           title: Front Door Did Not Lock
           message: The deadbolt did not confirm locked. Arming anyway.
       else:
-      - action: notify.mobile_app_pixel_10
+      - action: script.notify
         data:
+          audience: house_admins
+          severity: info
+          category: doors
+          tag_suffix: lock
           title: Front Door Locked
           message: The front door has been automatically locked.
   - alias: Arm away unless the alarm is already away or going off
@@ -58,8 +66,12 @@
     - action: alarm_control_panel.alarm_arm_away
       target:
         entity_id: alarm_control_panel.alarmo
-    - action: notify.mobile_app_pixel_10
+    - action: script.notify
       data:
+        audience: house_admins
+        severity: info
+        category: security
+        tag_suffix: arm_state
         title: House Secured
         message: The alarm has been automatically set to Armed Away.
   mode: single
@@ -82,8 +94,12 @@
   - action: lock.lock
     target:
       entity_id: lock.assure_2_biometric_deadbolt
-  - action: notify.mobile_app_pixel_10
+  - action: script.notify
     data:
+      audience: house_admins
+      severity: info
+      category: doors
+      tag_suffix: lock
       title: Front Door Locked
       message: The front door has been automatically locked.
   mode: queued

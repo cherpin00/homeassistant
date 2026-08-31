@@ -21,9 +21,14 @@
       trigger: state
   conditions: []
   actions:
-    - action: notify.notify
-      metadata: {}
+    # Was notify.notify, which fans out to EVERY notify platform — the retired
+    # Pixel 8 Pro, both live phones, every Echo in the house, and SMTP.
+    - action: script.notify
       data:
-        message: "\U0001F6AA Front door was unlocked"
+        audience: house_admins
+        severity: info
+        category: doors
+        tag_suffix: unlock
         title: Door Unlocked
+        message: "\U0001F6AA Front door was unlocked"
   mode: single

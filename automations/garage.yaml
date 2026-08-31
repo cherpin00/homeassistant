@@ -51,13 +51,14 @@
     - action: cover.open_cover
       target:
         entity_id: cover.ratgdo32disco_f9898c_door
-    - action: notify.mobile_app_pixel_10
+    - action: script.notify
       data:
+        audience: caleb
+        severity: info
+        category: garage
+        tag_suffix: auto_open
         title: Garage Opening
         message: Welcome home — opening the garage.
-        data:
-          channel: Garage
-          tag: garage_auto_open
     # Hold the run open so mode:single drops re-triggers for the cooldown
     # window. Same trick as security_alert_cooldown_minutes in alarm_system.yaml.
     - alias: Cooldown — absorb GPS flapping around the threshold
@@ -112,13 +113,14 @@
           entity_id: cover.ratgdo32disco_f9898c_door
           state: closed
       then:
-        - action: notify.mobile_app_pixel_10
+        - action: script.notify
           data:
+            audience: caleb
+            severity: info
+            category: garage
+            tag_suffix: auto_close
             title: Garage Closed
             message: Closed the garage behind you.
-            data:
-              channel: Garage
-              tag: garage_auto_close
 
 - id: garage_left_open_alert
   alias: Garage - Left Open Alert
@@ -143,15 +145,16 @@
                 entity_id: cover.ratgdo32disco_f9898c_door
                 state: closed
         sequence:
-          - action: notify.mobile_app_pixel_10
+          - action: script.notify
             data:
+              audience: house_admins
+              severity: warn
+              category: garage
+              tag_suffix: open
               title: Garage Still Open
               message: >-
                 Open for {{ relative_time(states.cover.ratgdo32disco_f9898c_door.last_changed) }}.
-              data:
-                channel: Garage
-                importance: high
-                tag: garage_open
+              push_data:
                 actions:
                   - action: GARAGE_CLOSE
                     title: Close Now
@@ -175,12 +178,15 @@
               - alias: Snoozed
                 delay:
                   minutes: 30
-    - alias: Door is shut — clear any lingering alert from the phone
-      action: notify.mobile_app_pixel_10
+    # Must target the same audience as the alert above, or the notification
+    # stays stuck on whichever phone is not cleared.
+    - alias: Door is shut — clear any lingering alert from the phones
+      action: script.notify
       data:
+        audience: house_admins
+        category: garage
+        tag_suffix: open
         message: clear_notification
-        data:
-          tag: garage_open
 
 - id: garage_night_force_close
   alias: Garage - Night Force Close
@@ -214,14 +220,15 @@
           value_template: >-
             {{ now().hour == states('input_number.garage_night_close_hour') | int(23) }}
   actions:
-    - action: notify.mobile_app_pixel_10
+    - action: script.notify
       data:
+        audience: house_admins
+        severity: warn
+        category: garage
+        tag_suffix: night_close
         title: Garage Still Open
         message: Closing the garage in 2 minutes. Tap Cancel to leave it open.
-        data:
-          channel: Garage
-          importance: high
-          tag: garage_night_close
+        push_data:
           actions:
             - action: GARAGE_CANCEL_CLOSE
               title: Cancel
@@ -236,13 +243,16 @@
         - condition: template
           value_template: "{{ wait.completed }}"
       then:
-        - action: notify.mobile_app_pixel_10
+        # Same audience and tag as the warning, so this replaces it in place
+        # on every phone that got it.
+        - action: script.notify
           data:
+            audience: house_admins
+            severity: info
+            category: garage
+            tag_suffix: night_close
             title: Garage Night Close Cancelled
             message: Leaving the garage open.
-            data:
-              channel: Garage
-              tag: garage_night_close
         - stop: Cancelled from the notification
     - action: script.garage_close_safely
       data:

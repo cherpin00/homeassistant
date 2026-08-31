@@ -57,7 +57,7 @@ pyscript:
       soc_sensor: sensor.caleb_s_model_y_battery_level
       cabin_temp_sensor: sensor.caleb_s_model_y_inside_temperature
       outside_temp_sensor: sensor.caleb_s_model_y_outside_temperature
-      notify_target: mobile_app_pixel_10
+      notify_audience: caleb
       travel_provider: waze
       dry_run: false
       precondition_lead_min: 5   # cabin reaches the comfort band in <10 min, even from 109F
@@ -71,7 +71,7 @@ pyscript:
       unanswered_ask_default: skip
     precondition_manual:
       climate_entity: climate.caleb_s_model_y_climate
-      notify_target: mobile_app_pixel_10
+      notify_audience: caleb
       max_retries: 3
       retry_delay_sec: 15
 counter: !include pyscript/counters.yaml

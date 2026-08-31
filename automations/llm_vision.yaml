@@ -35,15 +35,16 @@
         - condition: template
           value_template: "{{ not is_continuation }}"
       then:
-        - action: notify.mobile_app_pixel_10
+        - action: script.notify
           data:
+            audience: caleb
+            severity: warn
+            category: camera
+            tag_suffix: living_room
             title: Motion Detected
             message: Living Room — analyzing...
-            data:
-              tag: "{{ notification_tag }}"
+            push_data:
               group: living-room-camera
-              channel: LLM Vision
-              importance: high
 
     - alias: Step B2 — Person Recognition
       if:
@@ -331,18 +332,19 @@
         notification_id: "{{ notification_tag }}"
 
     - alias: Step E — Update phone notification with AI result
-      action: notify.mobile_app_pixel_10
+      action: script.notify
       data:
+        audience: caleb
+        severity: warn
+        category: camera
+        tag_suffix: living_room
         title: "{{ llm_result.get('title') or trigger_name }}"
         message: >-
           {{ llm_result.response_text | default('No response') }}{% if person_label %} 👤 {{ person_label }}{% if is_new_person %} (new){% endif %}{% endif %}
           {{ footer }}
-        data:
+        push_data:
           image: "{{ llm_result.get('image') or (base_path + event_ts + '_f1.jpg') }}"
-          tag: "{{ notification_tag }}"
           group: living-room-camera
-          channel: LLM Vision
-          importance: high
           clickAction: lovelace/
 
     - alias: Step F — Cooldown loop (waits for re-trigger or expiry)

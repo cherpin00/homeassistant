@@ -31,3 +31,12 @@ garage_auto_close_enabled:
 tesla_precondition_enabled:
   name: Tesla Calendar Preconditioning
   icon: mdi:car-clock
+
+# ── Notification opt-ins ────────────────────────────────────────────────────
+# One toggle per (audience, person) pair listed under `optional:` in
+# notify_roster.yaml. Base `members:` need no toggle — they always get it.
+# Naming is load-bearing: script.notify looks up
+# input_boolean.notify_<audience>_<person> by convention.
+notify_dev_becca:
+  name: Notify Becca of dev alerts
+  icon: mdi:bell-cog-outline

@@ -1,0 +1,70 @@
+# Notification roster — the single source of truth for WHO gets notified.
+#
+# Loaded into script.notify via `!include`. Adding a device or a person should
+# be a one-line change in this file; nothing else in the repo should ever name
+# a notify target directly.
+#
+# Three different notify APIs are used on purpose, because each transport has a
+# different constraint:
+#
+#   people.<key>.push   Legacy `notify.mobile_app_*` SERVICE names. Legacy is
+#                       not an oversight — only the legacy API carries a `data:`
+#                       payload, which is what makes actionable buttons, `tag:`
+#                       replace-in-place, Android channels and inline images
+#                       work. The modern notify.send_message entity API accepts
+#                       only message + title and would silently drop all of it.
+#
+#   people.<key>.email  Bare address. Passed as a `target:` override to the one
+#                       notify.email_alert SMTP service, rather than using the
+#                       per-recipient notify entities, because only the legacy
+#                       service carries `data.images` for security frame sets.
+#
+#   people.<key>.alexa  Notify ENTITY (not a service). Announcements need no
+#                       rich payload, so notify.send_message is the clean fit
+#                       here — and it keeps this path off the legacy
+#                       alexa_media custom component.
+#
+# Audiences:
+#   members   always notified
+#   optional  notified only when input_boolean.notify_<audience>_<person> is on
+#
+# To add a person: add a `people:` block, then add their key to whichever
+# audiences apply. To add one of their devices: append to their `push:` list.
+# Reload scripts afterwards — no restart needed.
+
+people:
+  caleb:
+    push:
+      - notify.mobile_app_pixel_10
+    email: caleb.herpin@gmail.com
+    alexa: notify.caleb_s_3rd_echo_dot_announce
+
+  becca:
+    push:
+      - notify.mobile_app_pixel_10_pro
+    email: beccacb3@gmail.com
+    alexa: notify.becca_room_announce
+
+audiences:
+  # Everything that concerns the house as a household.
+  house_admins:
+    members:
+      - caleb
+      - becca
+
+  # Single-person audiences, for things nobody else needs to see.
+  caleb:
+    members:
+      - caleb
+
+  becca:
+    members:
+      - becca
+
+  # Opt-in audience. Base members always get it; anyone in `optional` only gets
+  # it while their input_boolean.notify_dev_<person> toggle is on.
+  dev:
+    members:
+      - caleb
+    optional:
+      - becca

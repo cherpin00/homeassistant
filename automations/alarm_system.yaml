@@ -46,7 +46,6 @@
     camera_entity: "{{ states(cam_map[primary_id].camera) }}"
     event_ts: "{{ now().strftime('%Y%m%d_%H%M%S') }}"
     awareness_time: "{{ now().strftime('%I:%M:%S %p') }}"
-    notification_tag: security_alert
     # Timing — read once at trigger so the mode:single cooldown uses a consistent set.
     stage1_delay: "{{ states('input_number.security_stage_1_alert_seconds') | int(60) }}"
     stage2_delay: "{{ states('input_number.security_stage_2_alarm_seconds') | int(300) }}"
@@ -102,21 +101,23 @@
           entity_id: alarm_control_panel.alarmo
           state: armed_away
       then:
-        - action: notify.mobile_app_pixel_10
+        # warn + force_email rather than critical: the Alexa announce is
+        # deliberately held back until Stage 1, so a passer-by does not set the
+        # house talking at t=0.
+        - action: script.notify
           data:
+            audience: house_admins
+            severity: warn
+            category: security
+            tag_suffix: alert
+            force_email: true
             title: "Person at {{ active_names }}"
             message: "Detected — collecting footage for AI analysis..."
-            data:
-              tag: "{{ notification_tag }}"
+            push_data:
               image: "/api/camera_proxy/{{ camera_entity }}"
-              channel: Camera Alerts
-              importance: high
-        - action: notify.email_alert
-          data:
-            title: "Security Alert: Person detected at {{ active_names }}"
-            message: "Person first detected at {{ awareness_time }} at {{ active_names }}."
-            data:
-              images: "{{ init_files }}"
+            email_title: "Security Alert: Person detected at {{ active_names }}"
+            email_message: "Person first detected at {{ awareness_time }} at {{ active_names }}."
+            email_images: "{{ init_files }}"
 
     # ── STAGE 1: COLLECT → PAD → LLM → ALERT ────────────────────────────────
     # Collect primary-camera frames every frame_interval seconds until
@@ -156,30 +157,27 @@
           entity_id: group.property_person
           state: 'on'
       then:
-        - action: notify.mobile_app_pixel_10
+        - action: script.notify
           data:
+            audience: house_admins
+            severity: critical
+            category: security
+            tag_suffix: alert
             title: "Still here: Person at {{ active_names }}"
             message: "{{ s1_summary }}"
-            data:
-              tag: "{{ notification_tag }}"
+            push_data:
               image: "/api/camera_proxy/{{ camera_entity }}"
-              channel: Camera Alerts
-              importance: high
-        - action: script.announce
-          data:
-            message: "Alert: A person has been lingering at {{ active_names }} for {{ stage1_delay }} seconds."
-            type: announce
-        - action: notify.email_alert
-          data:
-            title: "Lingering Alert: Person at {{ active_names }}"
-            message: >-
+            alexa_message: >-
+              Alert: A person has been lingering at {{ active_names }} for
+              {{ stage1_delay }} seconds.
+            email_title: "Lingering Alert: Person at {{ active_names }}"
+            email_message: >-
               Timeline:
               {{ awareness_time }} — Person first detected at {{ active_names }}.
               {{ lingering_time }} — Still present after {{ stage1_delay }}s.
 
               AI Analysis ({{ stage1_delay }}s of footage): {{ s1_summary }}
-            data:
-              images: "{{ s1_llm_files.split('\n') | reject('eq', '') | list }}"
+            email_images: "{{ s1_llm_files.split('\n') | reject('eq', '') | list }}"
 
         # ── STAGE 2: COLLECT → PAD → LLM → ALARM ────────────────────────────
         # Continue collecting from stage1_delay to (stage2_delay - llm_lead).
@@ -218,26 +216,27 @@
             - action: input_boolean.turn_on
               target:
                 entity_id: input_boolean.master_siren_toggle
-            - action: notify.mobile_app_pixel_10
+            # warn + force_email, not critical: flipping the siren toggle above
+            # fires "Security - Siren Response ON", which owns the Alexa
+            # announce. Using critical here would announce twice.
+            - action: script.notify
               data:
+                audience: house_admins
+                severity: warn
+                category: security
+                tag_suffix: alert
+                force_email: true
                 title: "CRITICAL: Intruder at {{ active_names }}"
                 message: "{{ s2_summary }}"
-                data:
-                  tag: "{{ notification_tag }}"
-                  channel: Camera Alerts
-                  importance: high
-            - action: notify.email_alert
-              data:
-                title: "CRITICAL ALARM: {{ active_names }}"
-                message: >-
+                email_title: "CRITICAL ALARM: {{ active_names }}"
+                email_message: >-
                   Timeline:
                   {{ awareness_time }} — Person first detected at {{ active_names }}.
                   {{ lingering_time }} — Lingering after {{ stage1_delay }}s — {{ s1_summary }}
                   {{ critical_time }} — CRITICAL after {{ stage2_delay }}s.
 
                   Full AI Analysis: {{ s2_summary }}
-                data:
-                  images: "{{ s2_llm_files.split('\n') | reject('eq', '') | list }}"
+                email_images: "{{ s2_llm_files.split('\n') | reject('eq', '') | list }}"
 
     # ── COOLDOWN ──────────────────────────────────────────────────────────────
     # Keep this instance running so mode:single drops any re-triggers.
@@ -295,21 +294,17 @@
               - siren.front_right_siren
               - siren.living_room_siren
               - siren.back_right_siren
-    - action: script.announce
+    - action: script.notify
       data:
-        message: Warning! Intruder detected! Authorities have been notified!
-        type: announce
-    - action: notify.mobile_app_pixel_10
-      data:
+        audience: house_admins
+        severity: critical
+        category: security
+        tag_suffix: siren
         title: CRITICAL ALARM!
         message: SIRENS ACTIVATED!
-        data:
-          channel: Camera Alerts
-          importance: high
-    - action: notify.email_alert
-      data:
-        title: CRITICAL ALARM TRIGGERED!
-        message: Sirens have been activated. Immediate attention required.
+        alexa_message: Warning! Intruder detected! Authorities have been notified!
+        email_title: CRITICAL ALARM TRIGGERED!
+        email_message: Sirens have been activated. Immediate attention required.
 
 - id: '1780204800000'
   alias: Security - Siren Response OFF
@@ -345,8 +340,12 @@
     - action: alarm_control_panel.alarm_disarm
       target:
         entity_id: alarm_control_panel.alarmo
-    - action: notify.mobile_app_pixel_10
+    - action: script.notify
       data:
+        audience: house_admins
+        severity: info
+        category: security
+        tag_suffix: arm_state
         title: Alarm Disarmed
         message: Welcome home. The alarm has been automatically disarmed.
 
@@ -373,7 +372,11 @@
     - action: alarm_control_panel.alarm_arm_home
       target:
         entity_id: alarm_control_panel.alarmo
-    - action: notify.mobile_app_pixel_10
+    - action: script.notify
       data:
+        audience: house_admins
+        severity: info
+        category: security
+        tag_suffix: arm_state
         title: House Armed for the Night
         message: The perimeter has been automatically secured (Armed Home).
