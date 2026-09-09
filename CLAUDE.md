@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-Home Assistant configuration repository for a single instance running at `ha.herpin.xyz` (internal: `192.168.72.110:8123`). Behind a reverse proxy with trusted proxies on `192.168.72.0/24`. No build system or tests — this is pure YAML/config that gets loaded directly by Home Assistant.
+Home Assistant configuration repository for a single instance running at `ha.stone.herpin.xyz` (internal: `192.168.98.99:8123`). Behind a reverse proxy with trusted proxies on `192.168.98.0/24`. No build system or tests — this is pure YAML/config that gets loaded directly by Home Assistant.
 
 ## Repository Structure
 
