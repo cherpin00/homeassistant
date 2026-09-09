@@ -121,6 +121,14 @@ Settings worth knowing before you change them:
 | `cooldown` | `120` (seconds) | Blueprint default is `0`, i.e. no rate limit at all |
 | `base_url` | `https://ha.stone.herpin.xyz` | Optional per the blueprint, but **required** for Android to render thumbnails |
 
+**`notify_device` must be a real device id, not the blueprint's default.** The
+blueprint carries `device_id: !input notify_device` in the branch used when no
+notify group is set. HA validates the *entire* automation at load, dead branches
+included, so the input's `false` default fails with `Unknown device 'False'` and
+the automation loads `unavailable`. Note `ha core check` passes anyway — only an
+automation reload surfaces it. Delivery still goes via `notify_group`, so the id
+is there purely to satisfy validation.
+
 **External dependencies that will break it silently.** The Frigate integration's
 "unauthenticated notification event proxy" must stay enabled or every thumbnail
 and clip 401s. It is not set explicitly in the config entry — `options` is `{}`

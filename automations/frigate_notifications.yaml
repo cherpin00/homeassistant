@@ -49,6 +49,16 @@
         - camera.front_right
         - camera.back_left
         - camera.back_right
+      # notify_device must be a REAL device id even though notify_group
+      # overrides it at runtime. The blueprint has `device_id: !input
+      # notify_device` in the no-group branch, and HA validates the whole
+      # automation at load time -- including that dead branch. Left at its
+      # `false` default it fails with "Unknown device 'False'" and the
+      # automation loads as `unavailable`. `ha core check` does NOT catch
+      # this; only an automation reload surfaces it.
+      # Delivery still goes through notify_group, so the live path uses the
+      # stable service name rather than this opaque id.
+      notify_device: 4049cd9f5f5d3175cd23764aa82e5b4c  # Pixel 10
       notify_group: mobile_app_pixel_10
       base_url: https://ha.stone.herpin.xyz
       review_severity:
