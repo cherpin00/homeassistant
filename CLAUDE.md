@@ -18,7 +18,7 @@ Home Assistant configuration repository for a single instance running at `ha.sto
 
 ## Key Conventions
 
-**Automations format**: `automations.yaml` uses the HA UI list format — each automation is a list item with a numeric `id` field. YAML anchors (`&id001` / `*id001`) are used to duplicate the LLM Vision automation across multiple camera triggers. When editing, preserve the anchor/alias structure.
+**Automations format**: `automations.yaml` uses the HA UI list format — each automation is a list item with an `id` field (UI-created ones get a numeric string; hand-written ones in `automations/` use readable snake_case). Files under `automations/` are merged in by `!include_dir_merge_list`, so a new subsystem is a new file, not an edit to `automations.yaml`. There are **no YAML anchors** in this config; an earlier version of this file claimed the LLM Vision automation was fanned out across cameras with `&id001`/`*id001`, and that was never true.
 
 **Scripts format**: `scripts.yaml` uses the manual/named format — each script is a top-level key (e.g., `test_person_registry_read:`), not a list item.
 
@@ -88,6 +88,45 @@ clearance delay. Nothing here should be treated as a safety interlock.
 
 **Notification actions**: `GARAGE_CLOSE`, `GARAGE_SNOOZE`, `GARAGE_CANCEL_CLOSE`
 are handled by event triggers on `mobile_app_notification_action`.
+
+## Frigate Camera Notifications
+
+`automations/frigate_notifications.yaml`, driven by the vendored SgtBatten
+blueprint at `blueprints/automation/SgtBatten/frigate_notifications.yaml`
+(v0.14.0.2y). Triggers off the `frigate/reviews` MQTT topic and sends one
+actionable push per alert, with a thumbnail that updates in place as Frigate
+captures a better frame.
+
+**It fills the disarmed gap.** Every tier in `automations/alarm_system.yaml`
+gates on Alarmo being armed, so while the system is disarmed the five cameras
+detected people and vehicles and notified nobody. A state filter
+(`alarm_control_panel.alarmo` must be `disarmed`) is what keeps this from
+doubling up with Stage 0/1: arm the system and this goes quiet.
+
+**This is the one notification path that does NOT go through `script.notify`,
+by design.** The blueprint calls `notify.<service>` directly in ~10 places with
+its own rich payload, and `script.notify` is a script rather than a notify
+service, so the blueprint's `notify_group` input cannot target it. The
+alternatives were owning a 2147-line fork of upstream forever, or
+hand-rebuilding the blueprint against the router and losing the live-updating
+thumbnail. The inconsistency was judged cheaper than either. Consequence: this
+path reaches one device, and `notify_roster.yaml` does not apply to it — adding
+Becca means building a notify group and repointing `notify_group`.
+
+Settings worth knowing before you change them:
+
+| Setting | Value | Why not the default |
+|---|---|---|
+| `review_severity` | `[alert]` | Default is alerts **and** detections — a firehose across five cameras |
+| `cooldown` | `120` (seconds) | Blueprint default is `0`, i.e. no rate limit at all |
+| `base_url` | `https://ha.stone.herpin.xyz` | Optional per the blueprint, but **required** for Android to render thumbnails |
+
+**External dependencies that will break it silently.** The Frigate integration's
+"unauthenticated notification event proxy" must stay enabled or every thumbnail
+and clip 401s. It is not set explicitly in the config entry — `options` is `{}`
+and it defaults to `True` in `custom_components/frigate/views.py`. It also needs
+Frigate and HA on the same MQTT broker; Frigate's `mqtt.host` points at this
+instance.
 
 ## Working With This Repo
 

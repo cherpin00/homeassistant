@@ -1,0 +1,60 @@
+# Frigate camera notifications — SgtBatten blueprint (v0.14.0.2y).
+#
+# Design notes that are easy to get wrong later:
+#
+#   * THIS IS THE ONE NOTIFICATION PATH THAT BYPASSES script.notify, and that
+#     is deliberate. The blueprint calls notify.<service> directly in ~10
+#     places with its own rich payload, and script.notify is a script, not a
+#     notify service — the blueprint's `notify_group` input cannot target it.
+#     The alternatives were forking 2147 lines of upstream YAML forever, or
+#     hand-rebuilding the blueprint against script.notify and losing the
+#     live-updating thumbnail. Both cost more than the inconsistency does.
+#     To revisit: either upstream grows a "call a script" target, or replace
+#     this file with a custom frigate/reviews MQTT automation that calls
+#     script.notify with push_data carrying the image and actions.
+#
+#   * Because it bypasses the router, this reaches ONE device. Adding Becca
+#     means creating a notify group and pointing `notify_group` at it — the
+#     roster in notify_roster.yaml does not apply here.
+#
+#   * It covers the DISARMED gap only. alarm_system.yaml's Stage 0/1/2 all
+#     gate on Alarmo being armed, so five cameras saw people all day and said
+#     nothing. The state filter below is what keeps the two from doubling up:
+#     when you arm, this goes silent and the tiers take over.
+#
+#   * review_severity is alerts ONLY. The blueprint defaults to alerts AND
+#     detections, which across five cameras is a firehose.
+#
+#   * base_url is REQUIRED, not optional, because the target is Android —
+#     without it the notification arrives with no thumbnail.
+#
+#   * Requires the Frigate integration's "unauthenticated notification event
+#     proxy" to stay enabled, or thumbnails and clips 401. It is not set
+#     explicitly in the config entry options; it defaults to True in
+#     custom_components/frigate/views.py.
+
+- id: frigate_notifications
+  alias: Frigate - Camera Notifications
+  description: >-
+    Everyday camera awareness while the alarm is disarmed. Sends an actionable
+    push per Frigate alert with a thumbnail that updates as Frigate gets a
+    better frame. Goes silent whenever Alarmo is armed, leaving the armed path
+    to the Stage 0/1/2 tiers in alarm_system.yaml.
+  use_blueprint:
+    path: SgtBatten/frigate_notifications.yaml
+    input:
+      camera:
+        - camera.doorbell
+        - camera.front_left
+        - camera.front_right
+        - camera.back_left
+        - camera.back_right
+      notify_group: mobile_app_pixel_10
+      base_url: https://ha.stone.herpin.xyz
+      review_severity:
+        - alert
+      cooldown: 120
+      state_filter: true
+      state_entity: alarm_control_panel.alarmo
+      state_filter_states:
+        - disarmed
