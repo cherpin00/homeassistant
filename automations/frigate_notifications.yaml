@@ -17,10 +17,16 @@
 #     means creating a notify group and pointing `notify_group` at it — the
 #     roster in notify_roster.yaml does not apply here.
 #
-#   * It covers the DISARMED gap only. alarm_system.yaml's Stage 0/1/2 all
-#     gate on Alarmo being armed, so five cameras saw people all day and said
-#     nothing. The state filter below is what keeps the two from doubling up:
-#     when you arm, this goes silent and the tiers take over.
+#   * IT NOTIFIES REGARDLESS OF ALARM STATE, on purpose. This first shipped
+#     gated on Alarmo being `disarmed`, on the theory that alarm_system.yaml's
+#     Stage 0/1/2 already cover the armed case. The state history said
+#     otherwise: Alarmo sits at `armed_home` essentially permanently (one
+#     state change in seven days, and auto_disarm_when_phone_arrives had not
+#     fired in over a week), so the gated version was silent in practice.
+#     Accepted trade-off: during a genuine armed_away event you will get this
+#     push AND Stage 0's AI push for the same person. If that gets annoying,
+#     re-add `state_filter: true` with `armed_home` and `disarmed` in
+#     `state_filter_states` rather than going back to `disarmed` alone.
 #
 #   * review_severity is alerts ONLY. The blueprint defaults to alerts AND
 #     detections, which across five cameras is a firehose.
@@ -64,7 +70,3 @@
       review_severity:
         - alert
       cooldown: 120
-      state_filter: true
-      state_entity: alarm_control_panel.alarmo
-      state_filter_states:
-        - disarmed

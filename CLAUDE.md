@@ -97,11 +97,17 @@ blueprint at `blueprints/automation/SgtBatten/frigate_notifications.yaml`
 actionable push per alert, with a thumbnail that updates in place as Frigate
 captures a better frame.
 
-**It fills the disarmed gap.** Every tier in `automations/alarm_system.yaml`
-gates on Alarmo being armed, so while the system is disarmed the five cameras
-detected people and vehicles and notified nobody. A state filter
-(`alarm_control_panel.alarmo` must be `disarmed`) is what keeps this from
-doubling up with Stage 0/1: arm the system and this goes quiet.
+**It notifies regardless of alarm state, deliberately.** It first shipped gated
+on Alarmo being `disarmed`, reasoning that Stage 0/1/2 in
+`automations/alarm_system.yaml` already cover the armed case. That was wrong in
+practice: Alarmo sits at `armed_home` essentially permanently — one state change
+in seven days, with `auto_disarm_when_phone_arrives` not having fired in over a
+week — so the gated automation triggered and then silently suppressed itself
+every time. **Check state history, not just automation logic, before scoping
+anything to an alarm state.** Accepted trade-off: a genuine `armed_away` event
+produces this push *and* Stage 0's AI push for the same person. To dial it back,
+re-add `state_filter: true` listing both `armed_home` and `disarmed` — not
+`disarmed` alone, which is the version that didn't work.
 
 **This is the one notification path that does NOT go through `script.notify`,
 by design.** The blueprint calls `notify.<service>` directly in ~10 places with
