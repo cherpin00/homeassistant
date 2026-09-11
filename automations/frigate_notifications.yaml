@@ -70,3 +70,20 @@
       review_severity:
         - alert
       cooldown: 120
+      # Button 2 replaces the blueprint's "View Snapshot" default -- the
+      # notification already embeds the snapshot, so a button for it is dead
+      # weight. This is the blueprint's own "View Stream" preset: HA's MJPEG
+      # proxy for whichever camera triggered.
+      #
+      # KNOWN LIMIT: the access_token is baked in when the notification is sent
+      # and HA rotates it every few minutes, so tapping a notification more than
+      # ~5 min old returns 403. Verified: fresh token 200, 20-minute-old token
+      # 403. That is acceptable because this button is for acting in the moment;
+      # the durable alternative is a Lovelace view reached by a RELATIVE path
+      # (opens in-app, in-session, never expires).
+      #
+      # Do NOT use the blueprint's "Open Frigate" presets
+      # (/ccab4aaf_frigate/dashboard) -- those are for the Frigate ADD-ON, and
+      # this Frigate is a separate VM, so they 404 here.
+      button_2: View Live
+      url_2: "{{base_url}}/api/camera_proxy_stream/camera.{{trigger.payload_json['after']['camera'] | lower | replace('-','_')}}?token={{state_attr( 'camera.' ~ camera, 'access_token')}}"

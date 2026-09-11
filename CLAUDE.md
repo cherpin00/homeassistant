@@ -127,6 +127,17 @@ Settings worth knowing before you change them:
 | `cooldown` | `120` (seconds) | Blueprint default is `0`, i.e. no rate limit at all |
 | `base_url` | `https://ha.stone.herpin.xyz` | Optional per the blueprint, but **required** for Android to render thumbnails |
 
+**Action Button 2 is "View Live", not the default "View Snapshot"** — the
+notification already embeds the snapshot. It uses the blueprint's own "View
+Stream" preset, HA's MJPEG proxy for whichever camera fired. Its `access_token`
+is baked in at send time and HA rotates it every few minutes, so tapping a
+notification older than ~5 minutes returns **403** (measured: fresh token 200,
+20-minute-old token 403). Accepted — the button exists for acting in the moment.
+The durable alternative, if this becomes annoying, is a Lovelace camera view
+addressed by a **relative** path, which the Companion app opens in-session so
+nothing can expire. Note the blueprint's "Open Frigate" presets
+(`/ccab4aaf_frigate/dashboard`) are for the Frigate **add-on** and 404 here.
+
 **`notify_device` must be a real device id, not the blueprint's default.** The
 blueprint carries `device_id: !input notify_device` in the branch used when no
 notify group is set. HA validates the *entire* automation at load, dead branches
