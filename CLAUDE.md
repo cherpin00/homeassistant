@@ -135,12 +135,30 @@ the automation loads `unavailable`. Note `ha core check` passes anyway — only 
 automation reload surfaces it. Delivery still goes via `notify_group`, so the id
 is there purely to satisfy validation.
 
-**External dependencies that will break it silently.** The Frigate integration's
-"unauthenticated notification event proxy" must stay enabled or every thumbnail
-and clip 401s. It is not set explicitly in the config entry — `options` is `{}`
-and it defaults to `True` in `custom_components/frigate/views.py`. It also needs
-Frigate and HA on the same MQTT broker; Frigate's `mqtt.host` points at this
-instance.
+**The Frigate config entry URL must be `https://frigate.stone.herpin.xyz`, not
+the raw IP.** HA's notification proxy verifies TLS and offers no way to turn that
+off — the config entry's `validate_ssl: False` covers only the integration's own
+API calls, *not* the proxy. Frigate serves `:8971` with a self-signed cert, so
+while the integration looked perfectly healthy (cameras recording, events
+flowing), every notification thumbnail and clip returned **502**:
+
+    hass_web_proxy_lib: Reverse proxy error for /api/frigate/notifications/...
+    Cannot connect to host 192.168.98.251:8971 ssl:True
+    [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate
+
+Pointing the entry at the Coolify Traefik hostname gives a real Let's Encrypt
+cert that verifies, with nothing disabled anywhere. Fixed 2026-09-10. The
+trade-off accepted: the integration now depends on the Coolify host (192.168.98.70)
+being up, where before it talked straight to the Frigate VM. Do **not** "fix" a
+recurrence by setting `tls: enabled: false` in Frigate or by publishing Frigate's
+unauthenticated port 5000 — both were considered and are strictly worse.
+
+**Other dependencies that break it silently.** The integration's "unauthenticated
+notification event proxy" must stay enabled or thumbnails and clips 401 (note:
+**401**, as distinct from the 502 above — useful for telling the two apart). It is
+not set explicitly; `options` is `{}` and it defaults to `True` in
+`custom_components/frigate/views.py`. It also needs Frigate and HA on the same
+MQTT broker; Frigate's `mqtt.host` points at this instance.
 
 ## Working With This Repo
 
