@@ -1,11 +1,43 @@
 - binary_sensor:
+# Smart person sensors. Each ANDs two Frigate signals:
+#
+#   <cam>_*person_occupancy  live zone tracking -- flips for objects Frigate is
+#                            merely TRACKING, including ones it later discards
+#                            as false positives, which leave NO event, NO clip
+#                            and NO row in frigate.db.
+#   <cam>_review_status      Frigate's REVIEW layer -- only ALERT once Frigate
+#                            has committed to the detection.
+#
+# Occupancy alone caused a false siren on 2026-09-12: two ~6s phantom person
+# flips on front_left, bridged by the 10s delay_off debounce into what looked
+# like one continuous person, cleared Stage 2 at 52s (60s minus the 8s LLM lead)
+# and latched input_boolean.master_siren_toggle. Frigate's own database had no
+# object at all in that window, which is why nothing showed up in its UI.
+#
+# Backtested over 24h: occupancy alone gave 23 ON periods and one Stage 2;
+# the AND gave 15, max 50s, ZERO reaching Stage 2, while both genuine person
+# events still produced 47s and 50s spans (enough for Stage 0 and Stage 1).
+#
+# Degradation is deliberate and ordered:
+#   Frigate entities unavailable  -> fall back to the camera's own Reolink sensor
+#   review_status alone unavailable -> fall back to occupancy (today's behaviour)
+# Known gap: if Frigate is degraded but still CONNECTED (e.g. ffmpeg restart
+# loops) its entities stay "available" while review_status may stall at NONE,
+# suppressing real detections without triggering the Reolink fallback.
+
     - name: "Doorbell Smart Person"
       unique_id: doorbell_smart_person
       device_class: occupancy
       delay_off: "{{ states('input_number.security_sensor_debounce_seconds') | int(10) }}"
       state: >
-        {% if is_state('input_boolean.prefer_frigate_sensors', 'on') and states('binary_sensor.doorbell_property_person_occupancy') not in ['unavailable', 'unknown'] %}
-          {{ states('binary_sensor.doorbell_property_person_occupancy') }}
+        {% set occ = states('binary_sensor.doorbell_property_person_occupancy') %}
+        {% set rev = states('sensor.doorbell_review_status') %}
+        {% if is_state('input_boolean.prefer_frigate_sensors', 'on') and occ not in ['unavailable', 'unknown'] %}
+          {% if rev in ['unavailable', 'unknown'] %}
+            {{ occ }}
+          {% else %}
+            {{ 'on' if occ == 'on' and rev == 'ALERT' else 'off' }}
+          {% endif %}
         {% else %}
           {{ states('binary_sensor.doorbell_person') }}
         {% endif %}
@@ -15,8 +47,14 @@
       device_class: occupancy
       delay_off: "{{ states('input_number.security_sensor_debounce_seconds') | int(10) }}"
       state: >
-        {% if is_state('input_boolean.prefer_frigate_sensors', 'on') and states('binary_sensor.front_left_property_person_occupancy') not in ['unavailable', 'unknown'] %}
-          {{ states('binary_sensor.front_left_property_person_occupancy') }}
+        {% set occ = states('binary_sensor.front_left_property_person_occupancy') %}
+        {% set rev = states('sensor.front_left_review_status') %}
+        {% if is_state('input_boolean.prefer_frigate_sensors', 'on') and occ not in ['unavailable', 'unknown'] %}
+          {% if rev in ['unavailable', 'unknown'] %}
+            {{ occ }}
+          {% else %}
+            {{ 'on' if occ == 'on' and rev == 'ALERT' else 'off' }}
+          {% endif %}
         {% else %}
           {{ states('binary_sensor.front_left_person') }}
         {% endif %}
@@ -26,19 +64,37 @@
       device_class: occupancy
       delay_off: "{{ states('input_number.security_sensor_debounce_seconds') | int(10) }}"
       state: >
-        {% if is_state('input_boolean.prefer_frigate_sensors', 'on') and states('binary_sensor.front_right_property_person_occupancy') not in ['unavailable', 'unknown'] %}
-          {{ states('binary_sensor.front_right_property_person_occupancy') }}
+        {% set occ = states('binary_sensor.front_right_property_person_occupancy') %}
+        {% set rev = states('sensor.front_right_review_status') %}
+        {% if is_state('input_boolean.prefer_frigate_sensors', 'on') and occ not in ['unavailable', 'unknown'] %}
+          {% if rev in ['unavailable', 'unknown'] %}
+            {{ occ }}
+          {% else %}
+            {{ 'on' if occ == 'on' and rev == 'ALERT' else 'off' }}
+          {% endif %}
         {% else %}
           {{ states('binary_sensor.front_right_person') }}
         {% endif %}
 
+    # The living_room_* fallback below is NOT a typo: the Reolink device at
+    # 192.168.98.53 IS the back-left camera (TrackMix PoE, device named "Back
+    # Left"). It was renamed in HA but its entity_ids were never migrated, so
+    # all of its Reolink entities are still named living_room_*. The same
+    # applies to camera.living_room_fluent_lens_1, which automations/llm_vision
+    # analyses -- that is the back-left camera, not an indoor one.
     - name: "Back Left Smart Person"
       unique_id: back_left_smart_person
       device_class: occupancy
       delay_off: "{{ states('input_number.security_sensor_debounce_seconds') | int(10) }}"
       state: >
-        {% if is_state('input_boolean.prefer_frigate_sensors', 'on') and states('binary_sensor.back_left_person_occupancy') not in ['unavailable', 'unknown'] %}
-          {{ states('binary_sensor.back_left_person_occupancy') }}
+        {% set occ = states('binary_sensor.back_left_person_occupancy') %}
+        {% set rev = states('sensor.back_left_review_status') %}
+        {% if is_state('input_boolean.prefer_frigate_sensors', 'on') and occ not in ['unavailable', 'unknown'] %}
+          {% if rev in ['unavailable', 'unknown'] %}
+            {{ occ }}
+          {% else %}
+            {{ 'on' if occ == 'on' and rev == 'ALERT' else 'off' }}
+          {% endif %}
         {% else %}
           {{ states('binary_sensor.living_room_person') }}
         {% endif %}
@@ -48,8 +104,14 @@
       device_class: occupancy
       delay_off: "{{ states('input_number.security_sensor_debounce_seconds') | int(10) }}"
       state: >
-        {% if is_state('input_boolean.prefer_frigate_sensors', 'on') and states('binary_sensor.back_right_person_occupancy') not in ['unavailable', 'unknown'] %}
-          {{ states('binary_sensor.back_right_person_occupancy') }}
+        {% set occ = states('binary_sensor.back_right_person_occupancy') %}
+        {% set rev = states('sensor.back_right_review_status') %}
+        {% if is_state('input_boolean.prefer_frigate_sensors', 'on') and occ not in ['unavailable', 'unknown'] %}
+          {% if rev in ['unavailable', 'unknown'] %}
+            {{ occ }}
+          {% else %}
+            {{ 'on' if occ == 'on' and rev == 'ALERT' else 'off' }}
+          {% endif %}
         {% else %}
           {{ states('binary_sensor.back_right_person') }}
         {% endif %}
