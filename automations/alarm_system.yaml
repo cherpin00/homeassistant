@@ -115,6 +115,16 @@
             message: "Detected — collecting footage for AI analysis..."
             push_data:
               image: "/api/camera_proxy/{{ camera_entity }}"
+              actions:
+                # Live MJPEG feed of the camera that fired. Inlined rather than
+                # hoisted to a variable so the access_token is rendered at SEND
+                # time -- HA rotates it every few minutes, and Stage 2 fires 60s
+                # after the automation starts. Tapping a notification more than
+                # ~5 minutes old will still 403; this button is for acting now.
+                - action: URI
+                  title: View Live
+                  uri: >-
+                    https://ha.stone.herpin.xyz/api/camera_proxy_stream/{{ camera_entity }}?token={{ state_attr(camera_entity, 'access_token') }}
             email_title: "Security Alert: Person detected at {{ active_names }}"
             email_message: "Person first detected at {{ awareness_time }} at {{ active_names }}."
             email_images: "{{ init_files }}"
@@ -167,6 +177,16 @@
             message: "{{ s1_summary }}"
             push_data:
               image: "/api/camera_proxy/{{ camera_entity }}"
+              actions:
+                # Live MJPEG feed of the camera that fired. Inlined rather than
+                # hoisted to a variable so the access_token is rendered at SEND
+                # time -- HA rotates it every few minutes, and Stage 2 fires 60s
+                # after the automation starts. Tapping a notification more than
+                # ~5 minutes old will still 403; this button is for acting now.
+                - action: URI
+                  title: View Live
+                  uri: >-
+                    https://ha.stone.herpin.xyz/api/camera_proxy_stream/{{ camera_entity }}?token={{ state_attr(camera_entity, 'access_token') }}
             alexa_message: >-
               Alert: A person has been lingering at {{ active_names }} for
               {{ stage1_delay }} seconds.
@@ -228,6 +248,13 @@
                 force_email: true
                 title: "CRITICAL: Intruder at {{ active_names }}"
                 message: "{{ s2_summary }}"
+                push_data:
+                  image: "/api/camera_proxy/{{ camera_entity }}"
+                  actions:
+                    - action: URI
+                      title: View Live
+                      uri: >-
+                        https://ha.stone.herpin.xyz/api/camera_proxy_stream/{{ camera_entity }}?token={{ state_attr(camera_entity, 'access_token') }}
                 email_title: "CRITICAL ALARM: {{ active_names }}"
                 email_message: >-
                   Timeline:

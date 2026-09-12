@@ -30,7 +30,16 @@ Home Assistant configuration repository for a single instance running at `ha.sto
 
 The most complex automation captures camera frames on motion detection, runs LLM Vision analysis, and sends AI-summarized notifications. Key details:
 
-- Triggered by person/vehicle/animal binary sensors on the living room camera
+- Triggered by `binary_sensor.living_room_person` / `_vehicle` / `_animal`, and
+  analyses `camera.living_room_fluent_lens_1`. **Those are the BACK-LEFT OUTDOOR
+  camera, not an indoor one** — the Reolink TrackMix at 192.168.98.53 was renamed
+  "Back Left" in HA but its entity_ids were never migrated, so all of its
+  entities are still named `living_room_*`. It therefore overlaps the Security
+  Camera Coordinator, which covers the same camera via
+  `binary_sensor.back_left_smart_person`. What this automation adds over the
+  Coordinator is vehicles and animals (the Coordinator is person-only), running
+  unconditionally rather than only while armed, person recognition, and
+  triggering off Reolink rather than Frigate.
 - Frame count and capture duration controlled by `input_number` helpers (`llm_vision_max_frames`, `llm_vision_capture_duration_sec`)
 - Frames saved to `/media/llmvision/events/`
 - Optional person recognition system using `input_text` helpers as a JSON data store (`person_registry_metadata`, `person_<id>_data`)
@@ -89,100 +98,46 @@ clearance delay. Nothing here should be treated as a safety interlock.
 **Notification actions**: `GARAGE_CLOSE`, `GARAGE_SNOOZE`, `GARAGE_CANCEL_CLOSE`
 are handled by event triggers on `mobile_app_notification_action`.
 
-## Frigate Camera Notifications
+## Camera Notifications
 
-`automations/frigate_notifications.yaml`, driven by the vendored SgtBatten
-blueprint at `blueprints/automation/SgtBatten/frigate_notifications.yaml`
-(v0.14.0.2y). Triggers off the `frigate/reviews` MQTT topic and sends one
-actionable push per alert, with a thumbnail that updates in place as Frigate
-captures a better frame.
+All camera notifications come from `security_camera_coordinator` in
+`automations/alarm_system.yaml`, routed through `script.notify` to the
+`house_admins` audience. There is deliberately **no second notification path**.
 
-**It notifies regardless of alarm state, deliberately.** It first shipped gated
-on Alarmo being `disarmed`, reasoning that Stage 0/1/2 in
-`automations/alarm_system.yaml` already cover the armed case. That was wrong in
-practice: Alarmo sits at `armed_home` essentially permanently — one state change
-in seven days, with `auto_disarm_when_phone_arrives` not having fired in over a
-week — so the gated automation triggered and then silently suppressed itself
-every time. **Check state history, not just automation logic, before scoping
-anything to an alarm state.** Accepted trade-off: a genuine `armed_away` event
-produces this push *and* Stage 0's AI push for the same person. To dial it back,
-re-add `state_filter: true` listing both `armed_home` and `disarmed` — not
-`disarmed` alone, which is the version that didn't work.
+**Every tier carries a "View Live" action button** — HA's MJPEG proxy for
+whichever camera fired (`camera_entity`), alongside the snapshot image the
+notifications already had. The URL is inlined at each of the three tiers rather
+than hoisted into a variable, because the camera `access_token` must be rendered
+at send time: HA rotates it every few minutes and Stage 2 fires 60s after the
+automation starts. Tapping a notification more than ~5 minutes old will still
+return **403** — this button is for acting in the moment. The durable
+alternative, if that becomes annoying, is a Lovelace camera view addressed by a
+**relative** path, which the Companion app opens in-session so nothing expires.
 
-**This is the one notification path that does NOT go through `script.notify`,
-by design.** The blueprint calls `notify.<service>` directly in ~10 places with
-its own rich payload, and `script.notify` is a script rather than a notify
-service, so the blueprint's `notify_group` input cannot target it. The
-alternatives were owning a 2147-line fork of upstream forever, or
-hand-rebuilding the blueprint against the router and losing the live-updating
-thumbnail. The inconsistency was judged cheaper than either. Consequence: this
-path reaches one device, and `notify_roster.yaml` does not apply to it — adding
-Becca means building a notify group and repointing `notify_group`.
+**Notifications only fire while armed**, by design — every tier gates on Alarmo.
+Disarmed means no camera notifications at all. That is intentional (decided
+2026-09-12): security alerts when the system is disarmed are noise.
 
+### Retired: the SgtBatten Frigate blueprint
 
-**Known duplication, unresolved.** This automation and `security_camera_coordinator`
-now cover the same five outdoor cameras for the same object (person), so while
-armed a single person produces two pushes. The coordinator's goes through
-`script.notify` to `house_admins` (Caleb **and Becca**); this one goes only to
-Caleb's phone. The open question is whether to fold the live-stream button into
-`alarm_system.yaml`'s existing `push_data` — which `garage.yaml` already does for
-its action buttons — and retire this automation entirely. A blueprint cannot be
-embedded in an existing automation (it generates a whole automation, triggers
-included), but the live-stream URL needs no Frigate event id, so folding it in is
-a few lines. Only the *clip* link needs the event id that the MQTT payload carries.
+A blueprint-driven automation (`automations/frigate_notifications.yaml` plus a
+2147-line vendored blueprint) briefly ran alongside the above, triggering off the
+`frigate/reviews` MQTT topic. It was removed 2026-09-12. Do not reintroduce it
+without reading why:
 
-Settings worth knowing before you change them:
-
-| Setting | Value | Why not the default |
-|---|---|---|
-| `review_severity` | `[alert]` | Default is alerts **and** detections — a firehose across five cameras |
-| `labels` | `[person]` | Measured over 24h: **103 alerts, 93 of them cars**, 85 on `front_left` alone (it watches the road). Zone filtering does not help — 83 car alerts were *inside* `front_left_property` — and would actively hurt, since `back_left`/`back_right` person events carry no zones (whole-frame `back_*_person_occupancy`). Object filter is the only discriminator that works. |
-| `cooldown` | `120` (seconds) | Blueprint default is `0`, i.e. no rate limit at all |
-| `base_url` | `https://ha.stone.herpin.xyz` | Optional per the blueprint, but **required** for Android to render thumbnails |
-
-**Action Button 2 is "View Live", not the default "View Snapshot"** — the
-notification already embeds the snapshot. It uses the blueprint's own "View
-Stream" preset, HA's MJPEG proxy for whichever camera fired. Its `access_token`
-is baked in at send time and HA rotates it every few minutes, so tapping a
-notification older than ~5 minutes returns **403** (measured: fresh token 200,
-20-minute-old token 403). Accepted — the button exists for acting in the moment.
-The durable alternative, if this becomes annoying, is a Lovelace camera view
-addressed by a **relative** path, which the Companion app opens in-session so
-nothing can expire. Note the blueprint's "Open Frigate" presets
-(`/ccab4aaf_frigate/dashboard`) are for the Frigate **add-on** and 404 here.
-
-**`notify_device` must be a real device id, not the blueprint's default.** The
-blueprint carries `device_id: !input notify_device` in the branch used when no
-notify group is set. HA validates the *entire* automation at load, dead branches
-included, so the input's `false` default fails with `Unknown device 'False'` and
-the automation loads `unavailable`. Note `ha core check` passes anyway — only an
-automation reload surfaces it. Delivery still goes via `notify_group`, so the id
-is there purely to satisfy validation.
-
-**The Frigate config entry URL must be `https://frigate.stone.herpin.xyz`, not
-the raw IP.** HA's notification proxy verifies TLS and offers no way to turn that
-off — the config entry's `validate_ssl: False` covers only the integration's own
-API calls, *not* the proxy. Frigate serves `:8971` with a self-signed cert, so
-while the integration looked perfectly healthy (cameras recording, events
-flowing), every notification thumbnail and clip returned **502**:
-
-    hass_web_proxy_lib: Reverse proxy error for /api/frigate/notifications/...
-    Cannot connect to host 192.168.98.251:8971 ssl:True
-    [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate
-
-Pointing the entry at the Coolify Traefik hostname gives a real Let's Encrypt
-cert that verifies, with nothing disabled anywhere. Fixed 2026-09-10. The
-trade-off accepted: the integration now depends on the Coolify host (192.168.98.70)
-being up, where before it talked straight to the Frigate VM. Do **not** "fix" a
-recurrence by setting `tls: enabled: false` in Frigate or by publishing Frigate's
-unauthenticated port 5000 — both were considered and are strictly worse.
-
-**Other dependencies that break it silently.** The integration's "unauthenticated
-notification event proxy" must stay enabled or thumbnails and clips 401 (note:
-**401**, as distinct from the 502 above — useful for telling the two apart). It is
-not set explicitly; `options` is `{}` and it defaults to `True` in
-`custom_components/frigate/views.py`. It also needs Frigate and HA on the same
-MQTT broker; Frigate's `mqtt.host` points at this instance.
+- It was justified by a premise that turned out to be false — that the cameras
+  were silent while disarmed and that this was a gap worth filling. Disarmed
+  silence is the desired behaviour.
+- It duplicated the Coordinator across the same five cameras, so an armed person
+  produced two pushes, and it **bypassed `script.notify`** entirely, so Becca
+  never received any of it.
+- It was noisy: 103 notifications in 24h, 93 of them cars, before an object
+  filter cut it to ~10/day.
+- A blueprint cannot be embedded in an existing automation — it *generates* one,
+  triggers included. That is why it had to be a separate automation, and why the
+  live-stream button was folded into `alarm_system.yaml` instead: that URL needs
+  no Frigate event id. Only a *clip* link needs the event id the MQTT payload
+  carries, which is the one capability lost in the retirement.
 
 ## Working With This Repo
 
