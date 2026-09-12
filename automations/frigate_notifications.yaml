@@ -70,6 +70,16 @@
       review_severity:
         - alert
       cooldown: 120
+      # Person only. Measured over 24h: 103 alerts, of which 93 were cars and
+      # 10 were people -- 85 on front_left alone, which watches the road. Zone
+      # filtering does NOT help: 83 of the car alerts were inside
+      # front_left_property, so the cars are genuinely on the property. And a
+      # zone filter would actively hurt, because back_left/back_right person
+      # events carry no zones at all (templates.yaml uses whole-frame
+      # back_*_person_occupancy for those, not *_property_person_occupancy).
+      # Object filtering is the only discriminator that works here.
+      labels:
+        - person
       # Button 2 replaces the blueprint's "View Snapshot" default -- the
       # notification already embeds the snapshot, so a button for it is dead
       # weight. This is the blueprint's own "View Stream" preset: HA's MJPEG

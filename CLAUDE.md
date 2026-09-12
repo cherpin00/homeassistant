@@ -119,11 +119,24 @@ thumbnail. The inconsistency was judged cheaper than either. Consequence: this
 path reaches one device, and `notify_roster.yaml` does not apply to it — adding
 Becca means building a notify group and repointing `notify_group`.
 
+
+**Known duplication, unresolved.** This automation and `security_camera_coordinator`
+now cover the same five outdoor cameras for the same object (person), so while
+armed a single person produces two pushes. The coordinator's goes through
+`script.notify` to `house_admins` (Caleb **and Becca**); this one goes only to
+Caleb's phone. The open question is whether to fold the live-stream button into
+`alarm_system.yaml`'s existing `push_data` — which `garage.yaml` already does for
+its action buttons — and retire this automation entirely. A blueprint cannot be
+embedded in an existing automation (it generates a whole automation, triggers
+included), but the live-stream URL needs no Frigate event id, so folding it in is
+a few lines. Only the *clip* link needs the event id that the MQTT payload carries.
+
 Settings worth knowing before you change them:
 
 | Setting | Value | Why not the default |
 |---|---|---|
 | `review_severity` | `[alert]` | Default is alerts **and** detections — a firehose across five cameras |
+| `labels` | `[person]` | Measured over 24h: **103 alerts, 93 of them cars**, 85 on `front_left` alone (it watches the road). Zone filtering does not help — 83 car alerts were *inside* `front_left_property` — and would actively hurt, since `back_left`/`back_right` person events carry no zones (whole-frame `back_*_person_occupancy`). Object filter is the only discriminator that works. |
 | `cooldown` | `120` (seconds) | Blueprint default is `0`, i.e. no rate limit at all |
 | `base_url` | `https://ha.stone.herpin.xyz` | Optional per the blueprint, but **required** for Android to render thumbnails |
 
