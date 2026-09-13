@@ -116,15 +116,19 @@
             push_data:
               image: "/api/camera_proxy/{{ camera_entity }}"
               actions:
-                # Live MJPEG feed of the camera that fired. Inlined rather than
-                # hoisted to a variable so the access_token is rendered at SEND
-                # time -- HA rotates it every few minutes, and Stage 2 fires 60s
-                # after the automation starts. Tapping a notification more than
-                # ~5 minutes old will still 403; this button is for acting now.
+                # Links to FRIGATE's own live view, not HA's camera proxy.
+                # HA /api/ URLs do NOT work as notification targets: the Companion
+                # app opens them in its authenticated webview and attaches its own
+                # Authorization header, so HA returns 401 before it ever considers
+                # the ?token= param. The identical URL returns 200 from curl, which
+                # makes this look like it works when tested from a shell.
+                # Frigate's UI has no such problem, and it also sidesteps HA's
+                # camera access_token, which rotates every few minutes and made old
+                # notifications dead. Frigate auth stays ON; session_length is 30
+                # days (see its config.yml) so logging in is monthly, not per-tap.
                 - action: URI
                   title: View Live
-                  uri: >-
-                    https://ha.stone.herpin.xyz/api/camera_proxy_stream/{{ camera_entity }}?token={{ state_attr(camera_entity, 'access_token') }}
+                  uri: https://frigate.stone.herpin.xyz/live
             email_title: "Security Alert: Person detected at {{ active_names }}"
             email_message: "Person first detected at {{ awareness_time }} at {{ active_names }}."
             email_images: "{{ init_files }}"
@@ -178,15 +182,19 @@
             push_data:
               image: "/api/camera_proxy/{{ camera_entity }}"
               actions:
-                # Live MJPEG feed of the camera that fired. Inlined rather than
-                # hoisted to a variable so the access_token is rendered at SEND
-                # time -- HA rotates it every few minutes, and Stage 2 fires 60s
-                # after the automation starts. Tapping a notification more than
-                # ~5 minutes old will still 403; this button is for acting now.
+                # Links to FRIGATE's own live view, not HA's camera proxy.
+                # HA /api/ URLs do NOT work as notification targets: the Companion
+                # app opens them in its authenticated webview and attaches its own
+                # Authorization header, so HA returns 401 before it ever considers
+                # the ?token= param. The identical URL returns 200 from curl, which
+                # makes this look like it works when tested from a shell.
+                # Frigate's UI has no such problem, and it also sidesteps HA's
+                # camera access_token, which rotates every few minutes and made old
+                # notifications dead. Frigate auth stays ON; session_length is 30
+                # days (see its config.yml) so logging in is monthly, not per-tap.
                 - action: URI
                   title: View Live
-                  uri: >-
-                    https://ha.stone.herpin.xyz/api/camera_proxy_stream/{{ camera_entity }}?token={{ state_attr(camera_entity, 'access_token') }}
+                  uri: https://frigate.stone.herpin.xyz/live
             alexa_message: >-
               Alert: A person has been lingering at {{ active_names }} for
               {{ stage1_delay }} seconds.
@@ -253,8 +261,7 @@
                   actions:
                     - action: URI
                       title: View Live
-                      uri: >-
-                        https://ha.stone.herpin.xyz/api/camera_proxy_stream/{{ camera_entity }}?token={{ state_attr(camera_entity, 'access_token') }}
+                      uri: https://frigate.stone.herpin.xyz/live
                 email_title: "CRITICAL ALARM: {{ active_names }}"
                 email_message: >-
                   Timeline:

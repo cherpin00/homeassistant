@@ -127,15 +127,29 @@ All camera notifications come from `security_camera_coordinator` in
 `automations/alarm_system.yaml`, routed through `script.notify` to the
 `house_admins` audience. There is deliberately **no second notification path**.
 
-**Every tier carries a "View Live" action button** — HA's MJPEG proxy for
-whichever camera fired (`camera_entity`), alongside the snapshot image the
-notifications already had. The URL is inlined at each of the three tiers rather
-than hoisted into a variable, because the camera `access_token` must be rendered
-at send time: HA rotates it every few minutes and Stage 2 fires 60s after the
-automation starts. Tapping a notification more than ~5 minutes old will still
-return **403** — this button is for acting in the moment. The durable
-alternative, if that becomes annoying, is a Lovelace camera view addressed by a
-**relative** path, which the Companion app opens in-session so nothing expires.
+**Every tier carries a "View Live" action button** pointing at **Frigate's own
+live view** (`https://frigate.stone.herpin.xyz/live`), alongside the snapshot
+image the notifications already had.
+
+**Do not point notification buttons at HA `/api/` URLs.** A
+`/api/camera_proxy_stream/<cam>?token=<access_token>` link looks correct and
+returns **200 from curl**, but returns **401 in the Companion app**: the app
+opens it in its authenticated webview and attaches its own `Authorization`
+header, and HA rejects that before ever considering the `?token=` param. Testing
+from a shell will tell you it works. It does not. (Diagnosed 2026-09-13 after
+three failed variants; `action: URI` itself is fine — a `/lovelace` button
+proved that.) Linking to Frigate also sidesteps HA's camera `access_token`,
+which rotates every few minutes and silently killed older notifications.
+
+**Frigate auth stays enabled.** Its `session_length` is set to 30 days in
+Frigate's own `config.yml`, so tapping a link is a monthly login rather than a
+per-tap one. This was chosen deliberately over publishing Frigate's
+unauthenticated port 5000, which would let any device on the LAN view every
+camera and recording with no credentials.
+
+Per-camera deep-linking was not confirmed for Frigate 0.17 — only `/live` (the
+all-cameras dashboard) is verified. If a per-camera route exists, swapping the
+three `uri:` values is a one-line change each.
 
 **Notifications only fire while armed**, by design — every tier gates on Alarmo.
 Disarmed means no camera notifications at all. That is intentional (decided
