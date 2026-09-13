@@ -98,6 +98,29 @@ clearance delay. Nothing here should be treated as a safety interlock.
 **Notification actions**: `GARAGE_CLOSE`, `GARAGE_SNOOZE`, `GARAGE_CANCEL_CLOSE`
 are handled by event triggers on `mobile_app_notification_action`.
 
+## Frigate: facts that cost time to rediscover
+
+- **`sensor.<cam>_review_status` vs `binary_sensor.<cam>_*_occupancy`.** Occupancy
+  is Frigate's **live tracking** — it flips for objects Frigate is merely
+  evaluating, including ones it later discards as false positives, which leave
+  **no event, no clip and no row in `frigate.db`**. `review_status` is the
+  committed review layer. If HA reacts to something and Frigate's UI shows
+  nothing, this is why; check `frigate.db` directly before theorising.
+- **Per-camera person thresholds matter.** `front_right` is set to `0.78`;
+  `front_left` uses Frigate's default `0.7` and produces ~2.5x the occupancy
+  flips. Zone filtering does **not** substitute — 83 of 93 car alerts on
+  `front_left` were *inside* `front_left_property` — and a zone filter would
+  break the back cameras, which report whole-frame occupancy with no zones.
+- **Frigate 0.17 moved the score.** Top-level `top_score` in `/api/events` is
+  `null`; the real values are `data.score` and `data.top_score`. Reading the old
+  field makes every event look like `score=0` and invites a completely wrong
+  root cause.
+- **`/api/events` hides false positives.** Query `frigate.db` when you need to
+  know whether an object existed at all.
+- **The HA integration URL must be `https://frigate.stone.herpin.xyz`.** See the
+  TLS note under Camera Notifications' history — the notification proxy verifies
+  certificates and ignores `validate_ssl`.
+
 ## Camera Notifications
 
 All camera notifications come from `security_camera_coordinator` in
@@ -141,7 +164,61 @@ without reading why:
 
 ## Working With This Repo
 
-- **Validation**: No local validation tooling. Test changes by loading them in HA (Settings → YAML → Check Configuration, or restart HA).
+### Deploy loop
+
+Edit locally → commit → push → pull on the box → reload. **Do not scp into
+`/config`** — the SSH add-on logs you in as `cherpin` (uid 1000) and
+`/homeassistant` is root-owned, so a bare write fails. (`cherpin` does have
+`sudo`, but git is the sane path.)
+
+```sh
+git push origin master
+bash -ic 'hapull'      # function at ~/.bashrc:152 on cap2
+```
+
+`hapull` is `ssh 100.78.91.60 "sudo git -C /homeassistant pull --ff-only"`. Note
+**non-interactive bash does not source `.bashrc`**, so `bash -lc 'type hapull'`
+reports it missing — use `bash -ic`. A cron also pulls every 5 min, but it does
+**not** reload HA, so config lands on disk and sits inert until you reload.
+
+### The `ha` CLI needs a LOGIN shell
+
+```sh
+ssh host 'ha core check'                     # unauthorized: missing API token
+ssh -tt host "bash -l -c 'ha core check'"    # works
+```
+
+`$SUPERVISOR_TOKEN` is only exported by the login profile. Do not conclude from
+the bare form that the add-on withholds it from non-root users — it withholds it
+from non-login shells. With it you also get the supervisor proxy:
+
+```sh
+curl -H "Authorization: Bearer $SUPERVISOR_TOKEN" http://supervisor/core/api/states
+curl -X POST -H "Authorization: Bearer $SUPERVISOR_TOKEN" \
+     http://supervisor/core/api/services/automation/reload   # or template/reload
+```
+
+Reloading beats restarting: `automation/reload` re-reads `!include_dir_merge_list
+automations/`, `template/reload` re-reads `templates.yaml`. Neither bounces
+Alarmo or the pyscript apps.
+
+### Validation — and where it lies to you
+
+- **`ha core check` is necessary but NOT sufficient.** It passes on a
+  blueprint-based automation that then loads `unavailable` (e.g. an unset
+  `notify_device` rendering as `device_id: False`). **Always re-check the
+  entity's state after reloading**, not just the config check:
+  `curl .../core/api/states/automation.<name>` — look for `on`, not `unavailable`.
+- **Unit-test Jinja before shipping** by POSTing to `/core/api/template` with
+  literal values substituted for `states(...)` calls. This catches logic errors
+  that YAML parsing cannot, and it is fast enough to test every branch.
+- **`#` inside a YAML block scalar is NOT a comment.** In `state: >`, a `#` line
+  renders into the template output and corrupts the entity's value. Put such
+  comments above the list item instead.
+- **History API timestamps are read as LOCAL time.** A naive
+  `2026-09-12T13:41:19` resolves to the future and silently returns `[]`. Append
+  a URL-encoded offset: `...T13:41:19%2B00:00`.
+
 - **Secrets**: Never commit `secrets.yaml`. Use `!secret key_name` references in config files.
 - **Custom components**: Managed by HACS. Don't manually edit files under `custom_components/` — they get overwritten on updates.
 
