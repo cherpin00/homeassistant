@@ -61,6 +61,41 @@ The security logic is structured into distinct escalation tiers inside `automati
   - `Auto Disarm` instantly disarms when the Pixel 8 Pro arrives home.
   - `Auto Arm Home at Night` automatically arms the perimeter at 10 PM. If you arrive home late, it disarms, waits a 15-minute grace period (for groceries/settling), and then auto-arms the house for the night.
 - **Workflow / Reloading**: Changes to `templates.yaml`, `input_booleans.yaml`, or automations can be reloaded instantly via the HA Developer Tools. Changes to core setups (like the `notify.email_alert` SMTP in `configuration.yaml`) require a full HA system restart.
+## Lock-up (front deadbolt)
+
+`automations/lockup.yaml`. When `lock.assure_2_biometric_deadbolt` is unlocked
+while Alarmo is in **any** armed mode, push a warning with a **Keep Unlocked**
+button, wait out `input_number.auto_relock_delay_minutes` (default 3), then
+lock and confirm. Kill switch: `input_boolean.auto_relock_enabled`.
+
+**There is no door position sensor.** The Yale's DoorSense entities
+(`binary_sensor.assure_2_biometric_deadbolt_window_door_is_open` / `_is_closed`)
+report `unknown` on this install. Nothing here can tell whether the door is
+standing open, and a deadbolt driven into an open jamb strips the motor or
+leaves the bolt out to be smashed shut on. **The grace period is therefore a
+safety control, not a UX nicety** — do not shorten it to seconds. The real fix
+for a tighter window is a contact sensor on the jamb.
+`binary_sensor.assure_2_biometric_deadbolt_lock_jammed` is the only
+after-the-fact signal that we locked into open air, which is why the confirm
+step checks it rather than trusting `lock.lock`.
+
+A wrong re-lock strands nobody — it is a biometric keypad deadbolt, so a false
+positive costs one fingerprint. That is what makes it safe to fail closed.
+
+**Three automations touch this lock; they cover different edges.** Do not merge
+them. `Secure House When Phone Leaves` and `Auto Lock Front Door When Armed`
+(both in `automations.yaml`) fire on *departure* and on the *arming
+transition*. This one fires on an unlock that happens once already armed.
+
+The re-lock warning deliberately reuses `tag_suffix: unlock`, the same tag as
+`Notify when front door is unlocked` in `automations/main.yaml`, so the whole
+sequence reads as one notification evolving in place rather than three stacking
+up.
+
+**The garage is intentionally not covered.** `garage_night_force_close` already
+triggers on `armed_away` and already has a Cancel button, so extending it to
+the other armed modes is an edit to that trigger — not a second copy of this.
+
 ## Garage (ratgdo32 disco)
 
 Device suffix `f9898c`. Lives in `automations/garage.yaml` plus
