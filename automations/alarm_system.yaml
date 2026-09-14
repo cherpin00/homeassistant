@@ -155,10 +155,14 @@
         provider: 01KHDH36JH319D6FP251VYXE80
         image_file: "{{ s1_llm_files }}"
         message: >-
-          Security camera footage from the past {{ stage1_delay }} seconds across
-          {{ active_names }} ({{ s1_llm_files.split('\n') | reject('eq','') | list | count }} frames).
-          Describe what is happening in 2-3 sentences focusing on the person's
-          behavior and location. Be concise and factual.
+          The first {{ init_files | count }} images are SIMULTANEOUS single snapshots,
+          one from each of these cameras in this order: {{ active_names }}. The
+          remaining images are a time sequence from {{ cam_map[primary_id].name }}
+          ONLY, covering the past {{ stage1_delay }} seconds. Different camera
+          angles of the same moment -- do NOT describe them as one person moving
+          between places. Reply with ONE sentence, at most 15 words, saying what
+          the person is doing and where. No preamble, no framing, just the
+          sentence.
         store_in_timeline: false
         expose_images: true
       response_variable: s1_llm_result
@@ -178,7 +182,8 @@
             category: security
             tag_suffix: alert
             title: "Still here: Person at {{ active_names }}"
-            message: "{{ s1_summary }}"
+            # Hard cap on the PUSH only; the email below keeps the full text.
+            message: "{{ s1_summary | truncate(140, false, '…') }}"
             push_data:
               image: "/api/camera_proxy/{{ camera_entity }}"
               actions:
@@ -227,9 +232,13 @@
             provider: 01KHDH36JH319D6FP251VYXE80
             image_file: "{{ s2_llm_files }}"
             message: >-
-              Security camera footage spanning the full {{ stage2_delay }}-second event
-              across {{ active_names }} ({{ s2_llm_files.split('\n') | reject('eq','') | list | count }} frames).
-              Describe the complete sequence of events in 2-3 sentences. Be concise and factual.
+              The first {{ init_files | count }} images are SIMULTANEOUS single snapshots,
+              one from each of these cameras in this order: {{ active_names }}. The
+              remaining images are a time sequence from {{ cam_map[primary_id].name }}
+              ONLY, spanning the full {{ stage2_delay }}-second event. Different camera
+              angles of the same moment -- do NOT describe them as one person moving
+              between places. Reply with ONE sentence, at most 15 words, saying what
+              the person did and where. No preamble, no framing, just the sentence.
             store_in_timeline: false
             expose_images: true
           response_variable: s2_llm_result
@@ -255,7 +264,8 @@
                 tag_suffix: alert
                 force_email: true
                 title: "CRITICAL: Intruder at {{ active_names }}"
-                message: "{{ s2_summary }}"
+                # Hard cap on the PUSH only; the email below keeps the full text.
+                message: "{{ s2_summary | truncate(140, false, '…') }}"
                 push_data:
                   image: "/api/camera_proxy/{{ camera_entity }}"
                   actions:
