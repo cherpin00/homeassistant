@@ -1,0 +1,188 @@
+# Lock-up subsystem — re-secure openings that are opened while the house is
+# armed. Currently the front deadbolt only; the garage is deliberately NOT
+# here (see the note at the bottom of this file).
+#
+# Design notes that are easy to get wrong later:
+#
+#   * THERE IS NO DOOR POSITION SENSOR. The Yale's DoorSense entities
+#     (binary_sensor.assure_2_biometric_deadbolt_window_door_is_open /
+#     _is_closed) both report `unknown` on this install, so this automation
+#     cannot tell whether the door is standing open when it throws the bolt.
+#     Driving a deadbolt into an open jamb strips the motor or leaves the bolt
+#     out to be smashed by the closing door.
+#
+#     The grace period is therefore a SAFETY control, not a UX nicety — it is
+#     what makes it likely the door is actually shut by the time we lock. Do
+#     not shorten input_number.auto_relock_delay_minutes to seconds "to make it
+#     snappier". If you want this tighter, fit a contact sensor on the jamb and
+#     add it as a condition; that is the real fix, not cleverer YAML.
+#
+#   * binary_sensor.assure_2_biometric_deadbolt_lock_jammed is the only
+#     after-the-fact signal that we locked into an open door, which is why the
+#     confirm step below checks it rather than just trusting lock.lock.
+#
+#   * Nobody gets stranded by a wrong re-lock: it is a biometric keypad
+#     deadbolt, so the cost of a false positive is one fingerprint.
+
+- id: relock_front_door_while_armed
+  alias: Lockup - Re-lock Front Door While Armed
+  description: >-
+    When the front deadbolt is unlocked while the alarm is in any armed mode,
+    warn with a Keep Unlocked button and then re-lock after the grace period.
+    Complements "Auto Lock Front Door When Armed", which only covers the arming
+    transition itself, not an unlock that happens once already armed.
+  mode: restart
+  triggers:
+    # not_from rather than from: locked — a Z-Wave reconnect or an HA restart
+    # replays unavailable -> unlocked, and that must not arm a re-lock. This
+    # form still catches the unlocking -> unlocked path that `from: locked`
+    # would miss.
+    - trigger: state
+      entity_id: lock.assure_2_biometric_deadbolt
+      to: unlocked
+      not_from:
+        - unavailable
+        - unknown
+  conditions:
+    - condition: state
+      entity_id: input_boolean.auto_relock_enabled
+      state: "on"
+    # Alarmo's supported_features is 11 (home + away + night), so only the
+    # first three can occur today. The other two are listed anyway so that
+    # enabling a mode in Alarmo cannot silently drop it out of coverage — a
+    # state that never occurs costs nothing here.
+    - condition: state
+      entity_id: alarm_control_panel.alarmo
+      state:
+        - armed_home
+        - armed_away
+        - armed_night
+        - armed_vacation
+        - armed_custom_bypass
+  variables:
+    relock_delay: "{{ states('input_number.auto_relock_delay_minutes') | int(3) }}"
+  actions:
+    # Same tag_suffix as "Notify when front door is unlocked", on purpose: this
+    # replaces that push in place, so the sequence reads as one evolving
+    # notification rather than three stacking up on the phone.
+    - action: script.notify
+      data:
+        audience: house_admins
+        severity: warn
+        category: doors
+        tag_suffix: unlock
+        title: Front Door Unlocked
+        message: >-
+          The house is armed. Re-locking in {{ relock_delay }}
+          minute{{ 's' if relock_delay != 1 else '' }} — tap Keep Unlocked to leave it.
+        push_data:
+          actions:
+            - action: RELOCK_CANCEL
+              title: Keep Unlocked
+    # Either exit is a reason to stand down: the tap means "I meant to open
+    # it", the bolt going back to locked means someone beat us to it.
+    - alias: Wait for a Keep Unlocked tap, or for the bolt to be thrown by hand
+      wait_for_trigger:
+        - trigger: event
+          event_type: mobile_app_notification_action
+          event_data:
+            action: RELOCK_CANCEL
+          id: cancelled
+        - trigger: state
+          entity_id: lock.assure_2_biometric_deadbolt
+          to: locked
+          id: relocked_by_hand
+      timeout:
+        minutes: "{{ relock_delay }}"
+      continue_on_timeout: true
+    - alias: Cancelled from the notification
+      if:
+        - condition: template
+          value_template: "{{ wait.trigger is defined and wait.trigger.id == 'cancelled' }}"
+      then:
+        - action: script.notify
+          data:
+            audience: house_admins
+            severity: info
+            category: doors
+            tag_suffix: unlock
+            title: Front Door Left Unlocked
+            message: Leaving the front door unlocked.
+        - stop: Cancelled from the notification
+    - alias: Someone locked it by hand — clear the warning and stand down
+      if:
+        - condition: template
+          value_template: "{{ wait.trigger is defined and wait.trigger.id == 'relocked_by_hand' }}"
+      then:
+        - action: script.notify
+          data:
+            audience: house_admins
+            category: doors
+            tag_suffix: unlock
+            message: clear_notification
+        - stop: Locked by hand during the grace period
+    - alias: Abort if the house was disarmed during the grace period
+      if:
+        - condition: not
+          conditions:
+            - condition: state
+              entity_id: alarm_control_panel.alarmo
+              state:
+                - armed_home
+                - armed_away
+                - armed_night
+                - armed_vacation
+                - armed_custom_bypass
+      then:
+        - action: script.notify
+          data:
+            audience: house_admins
+            category: doors
+            tag_suffix: unlock
+            message: clear_notification
+        - stop: Disarmed during the grace period
+    - action: lock.lock
+      target:
+        entity_id: lock.assure_2_biometric_deadbolt
+    # Same confirm-then-warn pattern as "Secure House When Phone Leaves". With
+    # no door sensor this is the only way we find out we locked into open air.
+    - alias: Wait for the bolt to confirm
+      wait_for_trigger:
+        - trigger: state
+          entity_id: lock.assure_2_biometric_deadbolt
+          to: locked
+      timeout: "00:00:30"
+      continue_on_timeout: true
+    - if:
+        - condition: state
+          entity_id: lock.assure_2_biometric_deadbolt
+          state: locked
+        - condition: state
+          entity_id: binary_sensor.assure_2_biometric_deadbolt_lock_jammed
+          state: "off"
+      then:
+        - action: script.notify
+          data:
+            audience: house_admins
+            severity: info
+            category: doors
+            tag_suffix: unlock
+            title: Front Door Re-locked
+            message: Re-locked the front door because the house is armed.
+      else:
+        - action: script.notify
+          data:
+            audience: house_admins
+            severity: warn
+            category: doors
+            tag_suffix: unlock
+            title: Front Door Did Not Re-lock
+            message: >-
+              The deadbolt did not confirm locked{{ ' and reports jammed' if
+              is_state('binary_sensor.assure_2_biometric_deadbolt_lock_jammed', 'on') else '' }}.
+              Check whether the door is standing open.
+
+# The garage is intentionally not covered here. garage_night_force_close in
+# automations/garage.yaml already triggers on armed_away and already carries a
+# Cancel button, so extending it to the other armed modes is an edit to that
+# trigger — not a second copy of the design above.

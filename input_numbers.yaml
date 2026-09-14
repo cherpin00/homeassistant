@@ -165,3 +165,18 @@ garage_night_close_hour:
   mode: box
   unit_of_measurement: h
   initial: 23
+
+# ── Lock-up ─────────────────────────────────────────────────────────────────
+# Grace period between the front door being unlocked while armed and the
+# re-lock. This is a SAFETY control, not a UX one: there is no door position
+# sensor, so this delay is what makes it likely the door is actually shut
+# before the bolt is driven. See the header of automations/lockup.yaml before
+# lowering it.
+auto_relock_delay_minutes:
+  name: Auto Re-lock Delay (Minutes)
+  min: 1
+  max: 60
+  step: 1
+  mode: box
+  unit_of_measurement: min
+  initial: 3

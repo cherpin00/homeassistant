@@ -40,3 +40,11 @@ tesla_precondition_enabled:
 notify_dev_becca:
   name: Notify Becca of dev alerts
   icon: mdi:bell-cog-outline
+
+# ── Lock-up ─────────────────────────────────────────────────────────────────
+# Kill switch for "Lockup - Re-lock Front Door While Armed". No `initial:`, for
+# the same reason as the garage switches above: a restart must not silently
+# re-enable something you turned off.
+auto_relock_enabled:
+  name: Auto Re-lock While Armed
+  icon: mdi:lock-clock
