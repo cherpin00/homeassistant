@@ -181,7 +181,11 @@
             severity: critical
             category: security
             tag_suffix: alert
-            title: "Still here: Person at {{ active_names }}"
+            # NOT "Still here" -- Stage 0 only fires when armed_away, so when
+            # armed_home (the usual state) this is the FIRST notification and
+            # "still" refers to a message that was never sent. "Lingering"
+            # reads correctly either way, and matches the Alexa wording below.
+            title: "Person lingering at {{ active_names }}"
             # Hard cap on the PUSH only; the email below keeps the full text.
             message: "{{ s1_summary | truncate(140, false, '…') }}"
             push_data:
