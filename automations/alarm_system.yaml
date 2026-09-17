@@ -23,18 +23,23 @@
     cam_map:
       binary_sensor.doorbell_smart_person:
         camera: sensor.doorbell_smart_camera
+        image: image.doorbell_person
         name: Doorbell
       binary_sensor.front_left_smart_person:
         camera: sensor.front_left_smart_camera
+        image: image.front_left_person
         name: Front Left
       binary_sensor.front_right_smart_person:
         camera: sensor.front_right_smart_camera
+        image: image.front_right_person
         name: Front Right
       binary_sensor.back_left_smart_person:
         camera: sensor.back_left_smart_camera
+        image: image.back_left_person
         name: Back Left
       binary_sensor.back_right_smart_person:
         camera: sensor.back_right_smart_camera
+        image: image.back_right_person
         name: Back Right
     active_ids: >-
       {{ expand('group.property_person') | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list }}
@@ -44,6 +49,11 @@
       {% for e in active_ids %}{% set ns.n = ns.n + [cam_map[e].name] %}{% endfor %}
       {{ ns.n | join(', ') if ns.n | count > 0 else cam_map[primary_id].name }}
     camera_entity: "{{ states(cam_map[primary_id].camera) }}"
+    # Frigate's best person snapshot for this event. Unlike camera_proxy (a LIVE
+    # frame fetched when the phone RENDERS the notification, which is why pushes
+    # showed an empty yard), this image entity only changes when Frigate publishes
+    # a new person snapshot, so it holds the frame that actually tripped the alarm.
+    image_entity: "{{ cam_map[primary_id].image }}"
     event_ts: "{{ now().strftime('%Y%m%d_%H%M%S') }}"
     awareness_time: "{{ now().strftime('%I:%M:%S %p') }}"
     # Timing — read once at trigger so the mode:single cooldown uses a consistent set.
@@ -114,7 +124,7 @@
             title: "Person at {{ active_names }}"
             message: "Detected — collecting footage for AI analysis..."
             push_data:
-              image: "/api/camera_proxy/{{ camera_entity }}"
+              image: "/api/image_proxy/{{ image_entity }}"
               actions:
                 # Links to FRIGATE's own live view, not HA's camera proxy.
                 # HA /api/ URLs do NOT work as notification targets: the Companion
@@ -189,7 +199,7 @@
             # Hard cap on the PUSH only; the email below keeps the full text.
             message: "{{ s1_summary | truncate(140, false, '…') }}"
             push_data:
-              image: "/api/camera_proxy/{{ camera_entity }}"
+              image: "/api/image_proxy/{{ image_entity }}"
               actions:
                 # Links to FRIGATE's own live view, not HA's camera proxy.
                 # HA /api/ URLs do NOT work as notification targets: the Companion
@@ -271,7 +281,7 @@
                 # Hard cap on the PUSH only; the email below keeps the full text.
                 message: "{{ s2_summary | truncate(140, false, '…') }}"
                 push_data:
-                  image: "/api/camera_proxy/{{ camera_entity }}"
+                  image: "/api/image_proxy/{{ image_entity }}"
                   actions:
                     - action: URI
                       title: View Live
