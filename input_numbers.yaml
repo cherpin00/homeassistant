@@ -180,3 +180,31 @@ auto_relock_delay_minutes:
   mode: box
   unit_of_measurement: min
   initial: 3
+
+# ── Climate ─────────────────────────────────────────────────────────────────
+# Setpoint the Ecobee is driven to when the Model Y is routed home. Applied
+# with climate.set_temperature, which on an Ecobee lands as a TEMPORARY HOLD
+# that overrides the programmed schedule until something resumes it. The upper
+# bound is deliberately below the ~80 F "nobody home" hold, so a fat-fingered
+# value can never make this automation a no-op.
+ac_arrival_target_temp:
+  name: AC Arrival Target Temperature
+  min: 65
+  max: 78
+  step: 0.5
+  mode: box
+  unit_of_measurement: "°F"
+  initial: 74
+
+# How far out from arrival the house starts cooling. Compared against
+# sensor.caleb_s_model_y_time_to_arrival, which the Tesla integration only
+# refreshes about every 10 minutes -- so treat this as accurate to +/- one
+# poll, and do not set it below ~10 min or a short trip can finish first.
+ac_arrival_lead_minutes:
+  name: AC Arrival Lead Time (Minutes)
+  min: 5
+  max: 120
+  step: 5
+  mode: box
+  unit_of_measurement: min
+  initial: 30

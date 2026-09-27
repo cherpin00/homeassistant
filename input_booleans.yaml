@@ -48,3 +48,12 @@ notify_dev_becca:
 auto_relock_enabled:
   name: Auto Re-lock While Armed
   icon: mdi:lock-clock
+
+# ── Climate ─────────────────────────────────────────────────────────────────
+# Kill switch for "Climate - Cool House When Driving Home". Turn it off to stop
+# the Ecobee being driven off its schedule -- e.g. while away for a week, when a
+# stray navigation route home should not start cooling an empty house. No
+# `initial:`, for the same reason as the garage switches above.
+ac_arrival_enabled:
+  name: Cool House On Arrival
+  icon: mdi:snowflake-thermometer

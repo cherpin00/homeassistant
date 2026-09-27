@@ -1,0 +1,114 @@
+# Climate automation subsystem — the house thermostat
+# (climate.ecobee_9505_stonebridge).
+#
+# Design notes that are easy to get wrong later:
+#
+#   * device_tracker.caleb_s_model_y_route is the NAVIGATION DESTINATION, not
+#     the car. It reads `home` only while a route home is active and falls back
+#     to `unknown` the moment navigation ends, so it cannot go stale. Its
+#     companion sensors (time_to_arrival, distance_to_arrival) go `unavailable`
+#     in that same instant, so every condition here has to tolerate a missing
+#     value rather than assume the trip is still live.
+#
+#   * The Tesla Fleet integration refreshes roughly every 10 MINUTES, not
+#     continuously. That is why this triggers on each ETA refresh and not only
+#     on the route appearing: on a 45-minute drive the ETA is far outside the
+#     lead window at the moment the route shows up, and a route-only trigger
+#     would never look again.
+#
+#   * sensor.caleb_s_model_y_time_to_arrival is `device_class: timestamp` — an
+#     absolute arrival time, NOT a countdown. numeric_state cannot read it, so
+#     the lead-time check is the one template in this file. Keep the
+#     has_value() guard: without it as_datetime(None) raises on every poll gap.
+#
+#   * Navigation gets set while the car is parked at home (observed 2026-09-26,
+#     a route to Burnet Rd with the car still on the driveway), so "routed home"
+#     on its own does not mean "driving home". The location guard is what stops
+#     a route set from the driveway from cooling an already-occupied house.
+#
+#   * This deliberately never touches hvac_mode, so that a winter drive home
+#     cannot switch the house from heat to cooling. Two consequences: with the
+#     thermostat in `off` the automation is a silent no-op, and in `heat_cool`
+#     the call FAILS outright — that mode wants target_temp_low/high and rejects
+#     a lone `temperature`. It is correct only for the single-setpoint `cool`
+#     and `heat` modes, which is how this thermostat is actually run.
+#
+#   * climate.set_temperature on an Ecobee lands as a TEMPORARY HOLD that
+#     overrides the programmed schedule until something resumes it. Nothing here
+#     resumes it — that belongs to the departure half of this subsystem, which
+#     is not written yet. Until it is, the hold persists after you get home.
+
+- id: climate_ac_on_arrival
+  alias: Climate - Cool House When Driving Home
+  description: >-
+    Starts cooling the house when the Model Y is navigating home and the
+    estimated arrival falls inside the configured lead time.
+  mode: single
+  triggers:
+    - alias: A route home appeared
+      trigger: state
+      entity_id: device_tracker.caleb_s_model_y_route
+      to: home
+    # Re-check on every ETA refresh so a long drive is caught when it finally
+    # comes inside the lead window. See the poll-interval note above.
+    - alias: ETA refreshed
+      trigger: state
+      entity_id: sensor.caleb_s_model_y_time_to_arrival
+  conditions:
+    - condition: state
+      entity_id: input_boolean.ac_arrival_enabled
+      state: "on"
+    # The ETA trigger fires on every refresh regardless of where the car is
+    # headed, so the destination has to be re-checked here.
+    - condition: state
+      entity_id: device_tracker.caleb_s_model_y_route
+      state: home
+    # Car is already parked at home — a stationary route, not an arrival.
+    - condition: not
+      conditions:
+        - condition: state
+          entity_id: device_tracker.caleb_s_model_y_location
+          state: home
+    # The `0 <=` lower bound matters: it discards an arrival time already in the
+    # past, which is what a stale ETA left over from a finished trip looks like.
+    - alias: Arrival is inside the lead window
+      condition: template
+      value_template: >-
+        {% set eta = 'sensor.caleb_s_model_y_time_to_arrival' %}
+        {{ has_value(eta)
+           and 0 <= (as_datetime(states(eta)) - now()).total_seconds() / 60
+                 <= states('input_number.ac_arrival_lead_minutes') | float(30) }}
+  actions:
+    # Snapshot both values up front. The ETA sensor can flip to `unavailable`
+    # between the condition passing and the notification being built.
+    - variables:
+        target_temp: "{{ states('input_number.ac_arrival_target_temp') | float(74) }}"
+        eta_minutes: >-
+          {% set eta = 'sensor.caleb_s_model_y_time_to_arrival' %}
+          {{ ((as_datetime(states(eta)) - now()).total_seconds() / 60) | round | int
+             if has_value(eta) else 0 }}
+    - alias: Drive the Ecobee to the arrival setpoint
+      action: climate.set_temperature
+      target:
+        entity_id: climate.ecobee_9505_stonebridge
+      data:
+        temperature: "{{ target_temp }}"
+    - action: script.notify
+      data:
+        audience: caleb
+        # No `climate` category exists in script.notify's channel_map, and an
+        # unknown one silently falls back to the General channel. `vehicle` is
+        # the honest fit: the car is what triggers this.
+        severity: info
+        category: vehicle
+        tag_suffix: ac_arrival
+        title: Cooling the House
+        message: >-
+          Home in about {{ eta_minutes }} min — holding the thermostat at
+          {{ target_temp | round(1) }}°F.
+    # Hold the run open so mode:single drops the ~10-minute ETA refreshes for
+    # the rest of the trip, making this one action per arrival. Same trick as
+    # garage_auto_open_on_approach, and the reason that one is mode:single too.
+    - alias: Cooldown — one action per trip
+      delay:
+        minutes: 60
