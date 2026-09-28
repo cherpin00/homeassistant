@@ -33,6 +33,10 @@
 #     a lone `temperature`. It is correct only for the single-setpoint `cool`
 #     and `heat` modes, which is how this thermostat is actually run.
 #
+#   * This only ever cools, never warms. The numeric_state guard below means a
+#     setpoint already at or below the target is left alone — without it, coming
+#     home to a house held at 72 would be "corrected" up to 74.
+#
 #   * climate.set_temperature on an Ecobee lands as a TEMPORARY HOLD that
 #     overrides the programmed schedule until something resumes it. Nothing here
 #     resumes it — that belongs to the departure half of this subsystem, which
@@ -78,6 +82,19 @@
         {{ has_value(eta)
            and 0 <= (as_datetime(states(eta)) - now()).total_seconds() / 60
                  <= states('input_number.ac_arrival_lead_minutes') | float(30) }}
+    # NEVER RAISE THE SETPOINT. If the house is already held at or below the
+    # arrival target there is nothing to do, and acting anyway would make the
+    # house warmer at exactly the wrong moment. `above` is strict, so an equal
+    # setpoint also skips. Deliberately a condition rather than a min() clamp on
+    # the action: re-asserting an equal value would still convert a SCHEDULED
+    # comfort setting into a frozen temporary hold, and would fire a pointless
+    # notification. `above` reads the helper entity directly, so retuning the
+    # target needs no edit here.
+    - alias: Only ever cool — skip if already at or below the target
+      condition: numeric_state
+      entity_id: climate.ecobee_9505_stonebridge
+      attribute: temperature
+      above: input_number.ac_arrival_target_temp
   actions:
     # Snapshot both values up front. The ETA sensor can flip to `unavailable`
     # between the condition passing and the notification being built.
