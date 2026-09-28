@@ -1,0 +1,32 @@
+# Vacuum automation subsystem
+
+- id: vacuum_auto_run_when_away
+  alias: Vacuum - Auto Run When Away
+  description: >-
+    Starts the Roomba automatically when the last person leaves the house.
+  mode: single
+  triggers:
+    # Trigger when the number of people at home drops to 0
+    - trigger: numeric_state
+      entity_id: zone.home
+      below: 1
+  conditions:
+    # Only run if the house is actually empty (failsafe for flapping)
+    - condition: numeric_state
+      entity_id: zone.home
+      below: 1
+    # Check that the vacuum isn't already running or stuck
+    - condition: state
+      entity_id: vacuum.roomba  # Note: This entity ID might change depending on the Roomba's name
+      state: "docked"
+  actions:
+    - action: vacuum.start
+      target:
+        entity_id: vacuum.roomba
+    - action: script.notify
+      data:
+        audience: house_admins
+        severity: info
+        category: general
+        title: Roomba Started
+        message: The house is empty! Sending the Roomba out to clean.
