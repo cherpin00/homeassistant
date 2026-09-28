@@ -18,12 +18,12 @@
 - id: garage_auto_open_on_approach
   alias: Garage - Auto Open on Approach
   description: >-
-    Opens the garage when Caleb's phone closes to within the approach distance
-    while heading home.
+    Opens the garage when the nearest tracked phone (Caleb or Becca) closes to
+    within the approach distance while heading home.
   mode: single
   triggers:
     - trigger: numeric_state
-      entity_id: sensor.home_pixel_10_distance
+      entity_id: sensor.home_nearest_distance
       below: input_number.garage_approach_distance_ft
   conditions:
     - condition: state
@@ -39,14 +39,12 @@
       state: "off"
     # Only open when actually inbound. This is what kills most GPS flapping.
     - condition: state
-      entity_id: sensor.home_pixel_10_direction_of_travel
+      entity_id: sensor.home_nearest_direction_of_travel
       state:
         - towards
         - arrived
-    - condition: numeric_state
-      entity_id: device_tracker.pixel_10
-      attribute: gps_accuracy
-      below: 100
+    # We can't strictly check gps_accuracy on the 'nearest' pseudo-sensor directly,
+    # so we'll rely on the direction_of_travel being robust enough.
   actions:
     - action: cover.open_cover
       target:

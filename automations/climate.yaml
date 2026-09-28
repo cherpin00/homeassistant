@@ -129,3 +129,57 @@
     - alias: Cooldown — one action per trip
       delay:
         minutes: 60
+
+- id: climate_ac_on_phone_approach
+  alias: Climate - Cool House When Phone Approaches
+  description: >-
+    Starts cooling the house when a tracked phone closes to within a specific
+    distance and is heading home (handles Becca's phone and Caleb's phone when
+    not navigating in the Tesla).
+  mode: single
+  triggers:
+    - alias: Nearest person crossed the distance threshold
+      trigger: numeric_state
+      entity_id: sensor.home_nearest_distance
+      # Trigger when within 3 miles (15840 feet)
+      below: 15840
+  conditions:
+    - condition: state
+      entity_id: input_boolean.ac_arrival_enabled
+      state: "on"
+    - condition: state
+      entity_id: sensor.home_nearest_direction_of_travel
+      state: "towards"
+    # Ensure nobody is currently home (zone.home = 0) so we don't mess up manual settings
+    # if someone is already there with the windows open.
+    - condition: numeric_state
+      entity_id: zone.home
+      below: 1
+    # Only ever cool — skip if already at or below the target
+    - alias: Only ever cool — skip if already at or below the target
+      condition: numeric_state
+      entity_id: climate.ecobee_9505_stonebridge
+      attribute: temperature
+      above: input_number.ac_arrival_target_temp
+  actions:
+    - variables:
+        target_temp: "{{ states('input_number.ac_arrival_target_temp') | float(74) }}"
+    - alias: Drive the Ecobee to the arrival setpoint
+      action: climate.set_temperature
+      target:
+        entity_id: climate.ecobee_9505_stonebridge
+      data:
+        temperature: "{{ target_temp }}"
+    - action: script.notify
+      data:
+        audience: house_admins
+        severity: info
+        category: vehicle
+        tag_suffix: ac_arrival
+        title: Cooling the House
+        message: >-
+          Someone is approaching home — holding the thermostat at
+          {{ target_temp | round(1) }}°F.
+    - alias: Cooldown — one action per trip
+      delay:
+        minutes: 60
