@@ -143,7 +143,9 @@ garage_auto_open_cooldown_minutes:
   unit_of_measurement: min
   initial: 10
 
-# Approach radius for auto-open, compared against sensor.home_pixel_10_distance.
+# Approach radius for auto-open, compared against the Model Y's distance
+# (sensor.home_location_distance). Must comfortably exceed the ~440 ft the car
+# covers between fast polls at 30 mph — see automations/garage.yaml.
 # FEET, not meters - the proximity sensor reports imperial on this instance.
 # 1150 ft is ~350 m, roughly 26 s of warning at 30 mph against a 10.3 s open.
 # Tunable from the UI; the numeric_state trigger reads this entity directly.

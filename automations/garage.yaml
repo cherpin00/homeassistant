@@ -6,24 +6,120 @@
 #     driveway. `_vehicle_leaving` therefore means "the car left the bay" (a
 #     great auto-close trigger) while `_vehicle_arriving` means "the car is
 #     already inside" and is useless for auto-open. Auto-open has to come from
-#     a phone geofence instead.
+#     the car's GPS instead.
 #
-#   * sensor.home_pixel_10_distance is produced by the `proximity` config entry
-#     ("Home") and reports FEET on this instance, not meters.
+#   * Auto-open keys off the Model Y, not a phone, so it only fires when the
+#     car is what is arriving. sensor.home_location_distance is the Model Y's
+#     distance from the `proximity` config entry ("Home"); the ambiguous id is
+#     what HA generated from the tracker name "Location". It reports FEET on
+#     this instance, not meters.
+#
+#   * The Tesla Fleet integration only polls every 10 MINUTES. Across ten
+#     arrivals in Oct 2026 the car was never once seen inside the approach
+#     radius before it was already parked — so on its own it is useless here.
+#     garage_tesla_approach_poll fixes that by forcing refreshes, timed off the
+#     navigation ETA. That means auto-open needs NAVIGATION SET TO HOME; without
+#     a route there is nothing to schedule polls from and the door stays shut.
 #
 #   * Every guard here is advisory. The real last line of defence is the
 #     opener's own photo-eye beam, surfaced as `_obstruction`, which
 #     script.garage_close_safely checks before moving the door.
 
+- id: garage_tesla_approach_poll
+  alias: Garage - Poll Model Y When Nearly Home
+  description: >-
+    While the Model Y is navigating home, sleeps until the ETA is a few minutes
+    out, then force-refreshes the car's location every few seconds so the
+    auto-open below sees it cross the approach distance in time.
+  # single, not restart: each forced refresh also updates the ETA sensor, which
+  # would otherwise restart this run and reset the iteration cap below.
+  mode: single
+  max_exceeded: silent
+  variables:
+    # Start fast polling this many seconds before the ETA. Tesla's ETA is only
+    # minute-accurate, so leave slack.
+    fast_window_s: 180
+    # Fast poll interval. At 30 mph the car covers ~440 ft between polls, which
+    # has to fit inside the approach distance with room for the 10 s door open.
+    fast_interval_s: 10
+    # Longest sleep in the slow phase, so a changed ETA (traffic) is re-read.
+    max_sleep_s: 300
+    # Hard stop. Each poll is a billed Fleet API vehicle_data call.
+    max_polls: 120
+  triggers:
+    - alias: A route home appeared
+      trigger: state
+      entity_id: device_tracker.caleb_s_model_y_route
+      to: home
+    - alias: ETA refreshed
+      trigger: state
+      entity_id: sensor.caleb_s_model_y_time_to_arrival
+  conditions:
+    - condition: state
+      entity_id: input_boolean.garage_auto_open_enabled
+      state: "on"
+    - condition: state
+      entity_id: device_tracker.caleb_s_model_y_route
+      state: home
+    # Navigation gets set from the driveway too — see climate.yaml.
+    - condition: not
+      conditions:
+        - condition: state
+          entity_id: device_tracker.caleb_s_model_y_location
+          state: home
+    - condition: state
+      entity_id: cover.ratgdo32disco_f9898c_door
+      state: closed
+  actions:
+    - repeat:
+        while:
+          - condition: state
+            entity_id: device_tracker.caleb_s_model_y_route
+            state: home
+          - condition: not
+            conditions:
+              - condition: state
+                entity_id: device_tracker.caleb_s_model_y_location
+                state: home
+          - condition: state
+            entity_id: cover.ratgdo32disco_f9898c_door
+            state: closed
+          # Inside the radius means auto-open has had its chance; stop paying.
+          - condition: numeric_state
+            entity_id: sensor.home_location_distance
+            above: input_number.garage_approach_distance_ft
+          - condition: template
+            value_template: "{{ repeat.index <= max_polls }}"
+        sequence:
+          # The ETA is an absolute timestamp, not a countdown, hence the
+          # template. An unavailable or past ETA reads as 0 = poll fast.
+          - variables:
+              secs_out: >-
+                {% set eta = 'sensor.caleb_s_model_y_time_to_arrival' %}
+                {{ ((as_datetime(states(eta)) - now()).total_seconds()) | int
+                   if has_value(eta) else 0 }}
+          - alias: Sleep until nearly home, then at the fast interval
+            delay:
+              seconds: >-
+                {{ [[secs_out - fast_window_s, fast_interval_s] | max,
+                    max_sleep_s] | min }}
+          - alias: Force a Fleet API refresh of the car
+            action: homeassistant.update_entity
+            target:
+              entity_id: device_tracker.caleb_s_model_y_location
+            # One failed API call should not end polling for the whole trip.
+            continue_on_error: true
+
 - id: garage_auto_open_on_approach
   alias: Garage - Auto Open on Approach
   description: >-
-    Opens the garage when Caleb's phone closes to within the approach distance
-    while heading home.
+    Opens the garage when the Model Y closes to within the approach distance.
   mode: single
   triggers:
+    # A downward crossing already implies the car is inbound, so there is no
+    # separate direction-of-travel check.
     - trigger: numeric_state
-      entity_id: sensor.home_pixel_10_distance
+      entity_id: sensor.home_location_distance
       below: input_number.garage_approach_distance_ft
   conditions:
     - condition: state
@@ -32,21 +128,19 @@
     - condition: state
       entity_id: cover.ratgdo32disco_f9898c_door
       state: closed
-    # If the Model Y is already parked in the bay then this arrival is on foot
-    # or in another vehicle, and there is nothing to drive in.
+    # Belt and braces against a stale reading: the car cannot be arriving if
+    # the bay laser already sees it.
     - condition: state
       entity_id: binary_sensor.ratgdo32disco_f9898c_vehicle_detected
       state: "off"
-    # Only open when actually inbound. This is what kills most GPS flapping.
-    - condition: state
-      entity_id: sensor.home_pixel_10_direction_of_travel
-      state:
-        - towards
-        - arrived
-    - condition: numeric_state
-      entity_id: device_tracker.pixel_10
-      attribute: gps_accuracy
-      below: 100
+    # A 10-minute poll that first sees the car inside the home zone means it
+    # has been parked on the driveway for a while. Opening then would open the
+    # door behind someone who has already gone inside.
+    - condition: not
+      conditions:
+        - condition: state
+          entity_id: device_tracker.caleb_s_model_y_location
+          state: home
   actions:
     - action: cover.open_cover
       target:

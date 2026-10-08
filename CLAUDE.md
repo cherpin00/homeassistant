@@ -109,21 +109,31 @@ sensor is aimed down at the parking spot, so:
 - `binary_sensor.ratgdo32disco_f9898c_vehicle_arriving` = the car is *already
   inside*. Useless for auto-open. Do not wire auto-open to it.
 
-**Auto-open therefore runs off a phone geofence.** A `proximity` config entry
-titled "Home" tracks `device_tracker.pixel_10` against `zone.home` and produces
-`sensor.home_pixel_10_distance` and `sensor.home_pixel_10_direction_of_travel`.
-The distance sensor reports **feet**, not meters — this instance is on imperial.
+**Auto-open runs off the Model Y's GPS** (switched from the phone on
+2026-10-07, so it fires only when the car is what's arriving). A `proximity`
+config entry titled "Home" tracks `device_tracker.pixel_10` and
+`device_tracker.caleb_s_model_y_location` against `zone.home`. The car's sensors
+got the ambiguous ids `sensor.home_location_distance` /
+`_direction_of_travel` (from the tracker's name "Location") — renaming them
+breaks the garage automations. Distance reports **feet**, not meters.
 `input_number.garage_approach_distance_ft` (default 1150 ft ~ 350 m) is read
 directly by the trigger's `below:`, so the radius is tunable from the UI.
+
+**The Tesla only polls every 10 minutes**, far too slow to catch a 1150 ft
+radius (in ten arrivals measured, never once). `garage_tesla_approach_poll`
+fixes this: while `device_tracker.caleb_s_model_y_route` is `home`, it sleeps
+until ~3 min before the nav ETA (re-reading at most every 5 min), then calls
+`homeassistant.update_entity` on the car every 10 s until it is inside the
+radius, home, the route ends, or 120 polls. Each poll is a billed Fleet API
+call (~20 per trip). **Consequence: auto-open needs navigation set to home.**
 
 Proximity was created via its **config flow**, not YAML, so it needs no restart
 and is not in this repo. Recreate it with
 `POST /api/config/config_entries/flow` handler `proximity` if it is ever lost.
 
 **Guards on auto-open** (all must pass): enable toggle, door closed,
-`_vehicle_detected` off (car already parked = arriving on foot), direction of
-travel `towards`/`arrived`, and `gps_accuracy < 100` — 100.0 is the sentinel the
-phone reports on a bad indoor fix.
+`_vehicle_detected` off, and the car's location not already `home` — a slow poll
+that first sees it inside the zone means it has sat on the driveway for minutes.
 
 **Safety**: every guard is advisory. The real protection is the opener's
 photo-eye beam, surfaced as `_obstruction`, which `script.garage_close_safely`
