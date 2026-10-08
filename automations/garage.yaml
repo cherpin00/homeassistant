@@ -58,6 +58,10 @@
     - condition: state
       entity_id: input_boolean.garage_auto_open_enabled
       state: "on"
+    # Polls cost money; don't pay for them if the consumer is switched off.
+    - condition: state
+      entity_id: automation.garage_auto_open_on_approach
+      state: "on"
     - condition: state
       entity_id: device_tracker.caleb_s_model_y_route
       state: home
