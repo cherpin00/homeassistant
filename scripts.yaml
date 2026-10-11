@@ -379,6 +379,30 @@ garage_close_safely:
           state: closed
       then:
         - stop: Already closed
+    # The Model Y's power liftgate sits in the door's path when the car is
+    # parked nose-in, and the photo-eye beam is too low to see it. Fleet API
+    # only polls every 10 minutes, so this can miss a freshly opened trunk —
+    # it is a backstop, not a guarantee.
+    - alias: Never close onto the Model Y's open trunk
+      if:
+        - condition: state
+          entity_id: cover.caleb_s_model_y_trunk
+          state: open
+        - condition: state
+          entity_id: device_tracker.caleb_s_model_y_location
+          state: home
+      then:
+        - action: script.notify
+          data:
+            audience: house_admins
+            severity: warn
+            category: garage
+            tag_suffix: fault
+            title: Garage NOT Closed
+            message: >-
+              Model Y trunk is open — leaving the garage open
+              ({{ reason | default('requested', true) }}).
+        - stop: Model Y trunk open
     - action: cover.close_cover
       target:
         entity_id: cover.ratgdo32disco_f9898c_door

@@ -395,3 +395,93 @@
     - action: script.garage_close_safely
       data:
         reason: closed from notification
+
+- id: garage_trunk_remote_lockout
+  alias: Garage - Lock Remotes While Trunk Open
+  description: >-
+    While the Model Y is home with its trunk open, engages the ratgdo remote
+    lockout so no remote or HomeLink press can bring the door down onto the
+    liftgate. Releases it when the trunk closes or the car leaves.
+  # HA-initiated closes are blocked separately, in script.garage_close_safely.
+  #
+  # Limits worth knowing:
+  #   * Lock-remotes disables wireless remotes only. The WALL BUTTON still
+  #     works — that is the opener's design, not something HA can override.
+  #   * Trunk state comes from the 10-minute Fleet API poll, so the lockout can
+  #     lag a freshly opened trunk by up to 10 minutes.
+  mode: queued
+  max: 5
+  triggers:
+    - trigger: state
+      entity_id: cover.caleb_s_model_y_trunk
+      to: ~
+    - trigger: state
+      entity_id: device_tracker.caleb_s_model_y_location
+      to: ~
+    # Resync after a restart, in case a change was missed while down.
+    - trigger: homeassistant
+      event: start
+  conditions:
+    # The car going to sleep or the API dropping out says nothing about the
+    # trunk. Hold whatever state we are in rather than releasing the lock.
+    - condition: state
+      entity_id: cover.caleb_s_model_y_trunk
+      state:
+        - open
+        - closed
+    - condition: not
+      conditions:
+        - condition: state
+          entity_id: device_tracker.caleb_s_model_y_location
+          state:
+            - unavailable
+            - unknown
+  actions:
+    - choose:
+        - alias: Trunk open at home — lock the remotes out
+          conditions:
+            - condition: state
+              entity_id: cover.caleb_s_model_y_trunk
+              state: open
+            - condition: state
+              entity_id: device_tracker.caleb_s_model_y_location
+              state: home
+          sequence:
+            # Already locked by hand: leave it, and do not claim ownership, or
+            # closing the trunk would undo a lockout someone set on purpose.
+            - condition: state
+              entity_id: lock.ratgdo32disco_f9898c_lock_remotes
+              state: unlocked
+            - action: lock.lock
+              target:
+                entity_id: lock.ratgdo32disco_f9898c_lock_remotes
+            - action: input_boolean.turn_on
+              target:
+                entity_id: input_boolean.garage_trunk_lockout_active
+            - action: script.notify
+              data:
+                audience: house_admins
+                severity: info
+                category: garage
+                tag_suffix: trunk_lockout
+                title: Garage Remotes Locked
+                message: >-
+                  Model Y trunk is open, so garage remotes are disabled. The
+                  wall button still works.
+      default:
+        - alias: Only release a lock this automation took
+          condition: state
+          entity_id: input_boolean.garage_trunk_lockout_active
+          state: "on"
+        - action: lock.unlock
+          target:
+            entity_id: lock.ratgdo32disco_f9898c_lock_remotes
+        - action: input_boolean.turn_off
+          target:
+            entity_id: input_boolean.garage_trunk_lockout_active
+        - action: script.notify
+          data:
+            audience: house_admins
+            category: garage
+            tag_suffix: trunk_lockout
+            message: clear_notification
