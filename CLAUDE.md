@@ -122,7 +122,8 @@ directly by the trigger's `below:`, so the radius is tunable from the UI.
 **The Tesla only polls every 10 minutes**, far too slow to catch a 1150 ft
 radius (in ten arrivals measured, never once). `garage_tesla_approach_poll`
 fixes this: while `device_tracker.caleb_s_model_y_route` is `home`, it sleeps
-until ~3 min before the nav ETA (re-reading at most every 5 min), then calls
+until ~3 min before the nav ETA (re-reading at most every 5 min, and waking
+early on any ETA change; no ETA yet = slow, never fast), then calls
 `homeassistant.update_entity` on the car every 10 s until it is inside the
 radius, home, the route ends, or 120 polls. Each poll is a billed Fleet API
 call (~20 per trip). **Consequence: auto-open needs navigation set to home.**

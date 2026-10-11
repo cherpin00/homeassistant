@@ -96,23 +96,46 @@
             value_template: "{{ repeat.index <= max_polls }}"
         sequence:
           # The ETA is an absolute timestamp, not a countdown, hence the
-          # template. An unavailable or past ETA reads as 0 = poll fast.
+          # template.
+          #
+          # An UNAVAILABLE ETA must mean "slow", never "fast". On 2026-10-11 a
+          # route home was set while the car sat ~2,400 ft away for 20 minutes
+          # with no ETA; treating that as "arriving now" burned all 120 polls,
+          # and the cap ran out one poll before the car crossed the radius.
+          # The ETA appeared ~2 min before arrival, which a slow re-read
+          # catches.
           - variables:
+              eta_known: "{{ has_value('sensor.caleb_s_model_y_time_to_arrival') }}"
               secs_out: >-
                 {% set eta = 'sensor.caleb_s_model_y_time_to_arrival' %}
                 {{ ((as_datetime(states(eta)) - now()).total_seconds()) | int
                    if has_value(eta) else 0 }}
-          - alias: Sleep until nearly home, then at the fast interval
-            delay:
+          # A wait rather than a delay: mode single drops the ETA trigger while
+          # this run is busy, so the run has to watch for the integration's own
+          # 10-minute refresh itself, or a newly appeared ETA sits unread for up
+          # to max_sleep_s.
+          - alias: Sleep until nearly home (or the ETA changes), then fast
+            wait_for_trigger:
+              - trigger: state
+                entity_id: sensor.caleb_s_model_y_time_to_arrival
+            timeout:
               seconds: >-
-                {{ [[secs_out - fast_window_s, fast_interval_s] | max,
-                    max_sleep_s] | min }}
-          - alias: Force a Fleet API refresh of the car
-            action: homeassistant.update_entity
-            target:
-              entity_id: device_tracker.caleb_s_model_y_location
-            # One failed API call should not end polling for the whole trip.
-            continue_on_error: true
+                {% if not eta_known %}{{ max_sleep_s }}
+                {% else %}{{ [[secs_out - fast_window_s, fast_interval_s] | max,
+                              max_sleep_s] | min }}{% endif %}
+            continue_on_timeout: true
+          # Woken by the integration's own refresh = data is already fresh, so
+          # just loop round and reschedule from the new ETA.
+          - if:
+              - condition: template
+                value_template: "{{ wait.trigger is none }}"
+            then:
+              - alias: Force a Fleet API refresh of the car
+                action: homeassistant.update_entity
+                target:
+                  entity_id: device_tracker.caleb_s_model_y_location
+                # One failed API call should not end polling for the trip.
+                continue_on_error: true
 
 - id: garage_auto_open_on_approach
   alias: Garage - Auto Open on Approach
