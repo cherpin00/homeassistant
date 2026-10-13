@@ -30,3 +30,41 @@
         category: general
         title: Roomba Started
         message: The house is empty! Sending the Roomba out to clean.
+
+- id: vacuum_return_home_on_arrival
+  alias: Vacuum - Return Home on Arrival
+  description: >-
+    Sends the Roomba back to its dock when someone arrives home.
+  mode: single
+  triggers:
+    # Trigger when someone arrives home (number of people rises above 0)
+    - trigger: numeric_state
+      entity_id: zone.home
+      above: 0
+  conditions:
+    # Only run if someone is actually home (failsafe for flapping)
+    - condition: numeric_state
+      entity_id: zone.home
+      above: 0
+    # Check that the vacuum isn't already docked, returning, or unavailable
+    - condition: not
+      conditions:
+        - condition: state
+          entity_id: vacuum.roomba  # Note: This entity ID might change depending on the Roomba's name
+          state:
+            - "docked"
+            - "returning"
+            - "unavailable"
+            - "unknown"
+  actions:
+    - action: vacuum.return_to_base
+      target:
+        entity_id: vacuum.roomba
+    - action: script.notify
+      data:
+        audience: house_admins
+        severity: info
+        category: general
+        title: Roomba Returning Home
+        message: Someone arrived home! Sending the Roomba back to its dock.
+
