@@ -20,8 +20,8 @@ class StonebridgeLights extends SbCard {
     const lights = this.all();
     const head = lightsHeadline(lights);
     const onLights = lights.filter((l) => l.on);
-    const longest = onLights.map((l) => ({ l, m: this.minutesSince(l.entity) })).sort((a, b) => b.m - a.m)[0];
-    const since = longest?.m != null ? `${longest.l.name} on since ${new Date(Date.now() - longest.m * 60_000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.` : null;
+    // Not "on since …": HA resets last_changed on restart, so that time can lie.
+    const since = onLights.length > 1 ? `${onLights.map((l) => l.name).join(", ")}.` : null;
 
     return `
     <div class="stack">

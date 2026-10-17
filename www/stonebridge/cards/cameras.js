@@ -5,9 +5,13 @@ import { camerasHeadline, relTime } from "../headlines.js";
 // type: custom:stonebridge-cameras
 // config: cameras: [{camera, person, name}]  — first one is shown large and live.
 //
-// Unlike the other cards this one never replaces its whole shadow DOM: the live
-// stream lives in a container built once, and only the headline, badges and
-// snapshot grid are re-rendered. Rebuilding would restart the stream.
+// Unlike the other cards this one never replaces its whole shadow DOM: the main
+// camera lives in a container built once, and only the headline, badges and
+// snapshot grid are re-rendered.
+//
+// Live video is OFF by default (`live: true` to enable): HA reaches Frigate's
+// RTSP restream on :8554, which is not reachable from HA on this network, so a
+// live view renders blank. The main camera is a 2-second snapshot instead.
 class StonebridgeCameras extends SbCard {
   entities() {
     return (this.config.cameras ?? []).flatMap((c) => [c.camera, c.person]);
@@ -17,8 +21,9 @@ class StonebridgeCameras extends SbCard {
     super.connectedCallback();
     // entity_picture carries a rotating token; refresh snapshots every 10 s.
     this._snap = setInterval(() => this._refreshSnapshots(), 10_000);
+    this._mainSnap = setInterval(() => this._refreshSnapshots("main"), 2_000);
   }
-  disconnectedCallback() { super.disconnectedCallback(); clearInterval(this._snap); }
+  disconnectedCallback() { super.disconnectedCallback(); clearInterval(this._snap); clearInterval(this._mainSnap); }
 
   set hass(h) { super.hass = h; if (this._liveCard) this._liveCard.hass = h; }
   get hass() { return super.hass; }
@@ -27,7 +32,7 @@ class StonebridgeCameras extends SbCard {
     return (this.config.cameras ?? []).map((c) => ({
       ...c,
       personNow: this.on(c.person),
-      minutesSincePerson: this.on(c.person) === false ? this.minutesSince(c.person) : null,
+      minutesSincePerson: this.minutesSincePerson(c.camera),
     }));
   }
 
@@ -54,7 +59,7 @@ class StonebridgeCameras extends SbCard {
     const mainEl = root.getElementById("main");
     if (main) {
       mainEl.dataset.action = `open:${main.camera}`;
-      root.getElementById("mainname").textContent = `${main.name} (live)`;
+      root.getElementById("mainname").textContent = this.config.live ? `${main.name} (live)` : main.name;
       this._badge(root.getElementById("mainbadge"), main);
     } else mainEl.hidden = true;
     root.getElementById("grid").innerHTML = rest.map((c) => `
@@ -76,13 +81,14 @@ class StonebridgeCameras extends SbCard {
     return pic ? `${pic}${pic.includes("?") ? "&" : "?"}t=${Date.now()}` : null;
   }
 
-  _img(cam) {
+  _img(cam, group = "grid") {
     const src = this._src(cam);
-    return src ? `<img data-cam="${esc(cam)}" src="${esc(src)}" alt="">` : `<div class="nofeed">No feed</div>`;
+    return src ? `<img data-cam="${esc(cam)}" data-group="${group}" src="${esc(src)}" alt="">` : `<div class="nofeed">No feed</div>`;
   }
 
-  _refreshSnapshots() {
-    this.shadowRoot.querySelectorAll("img[data-cam]").forEach((img) => {
+  _refreshSnapshots(group = "grid") {
+    this.shadowRoot.querySelectorAll(`img[data-group="${group}"]`).forEach((img) => {
+      if (!img.complete) return; // previous frame still loading — don't pile up requests
       const src = this._src(img.dataset.cam);
       if (src) img.src = src;
     });
@@ -92,6 +98,7 @@ class StonebridgeCameras extends SbCard {
     const slot = this.shadowRoot.getElementById("live");
     const main = this.config.cameras?.[0];
     if (!slot || !main) return;
+    if (!this.config.live) { slot.innerHTML = this._img(main.camera, "main"); return; }
     try {
       const helpers = await window.loadCardHelpers?.();
       if (helpers) {
@@ -104,7 +111,7 @@ class StonebridgeCameras extends SbCard {
         return;
       }
     } catch (e) { console.warn("stonebridge: live view unavailable, using snapshots", e); }
-    slot.innerHTML = this._img(main.camera);
+    slot.innerHTML = this._img(main.camera, "main");
   }
 
   setConfig(config) {

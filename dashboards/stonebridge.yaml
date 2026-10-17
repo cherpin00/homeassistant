@@ -25,11 +25,11 @@ views:
           - { entity: person.cherpin, name: Caleb }
           - { entity: person.becca, name: Becca }
         cameras_person:
-          - { entity: binary_sensor.doorbell_smart_person, name: Doorbell }
-          - { entity: binary_sensor.front_left_smart_person, name: Front left }
-          - { entity: binary_sensor.front_right_smart_person, name: Front right }
-          - { entity: binary_sensor.back_left_smart_person, name: Back left }
-          - { entity: binary_sensor.back_right_smart_person, name: Back right }
+          - { entity: binary_sensor.doorbell_smart_person, camera: camera.doorbell, name: Doorbell }
+          - { entity: binary_sensor.front_left_smart_person, camera: camera.front_left, name: Front left }
+          - { entity: binary_sensor.front_right_smart_person, camera: camera.front_right, name: Front right }
+          - { entity: binary_sensor.back_left_smart_person, camera: camera.back_left, name: Back left }
+          - { entity: binary_sensor.back_right_smart_person, camera: camera.back_right, name: Back right }
         # Upstairs windows on the house drawing glow when any of these are on.
         upstairs_lights:
           - light.master_light
@@ -164,11 +164,11 @@ views:
         garage_close_script: script.garage_close_safely
         garage_remotes: lock.ratgdo32disco_f9898c_lock_remotes
         cameras_person:
-          - { entity: binary_sensor.doorbell_smart_person, name: Doorbell }
-          - { entity: binary_sensor.front_left_smart_person, name: Front left }
-          - { entity: binary_sensor.front_right_smart_person, name: Front right }
-          - { entity: binary_sensor.back_left_smart_person, name: Back left }
-          - { entity: binary_sensor.back_right_smart_person, name: Back right }
+          - { entity: binary_sensor.doorbell_smart_person, camera: camera.doorbell, name: Doorbell }
+          - { entity: binary_sensor.front_left_smart_person, camera: camera.front_left, name: Front left }
+          - { entity: binary_sensor.front_right_smart_person, camera: camera.front_right, name: Front right }
+          - { entity: binary_sensor.back_left_smart_person, camera: camera.back_left, name: Back left }
+          - { entity: binary_sensor.back_right_smart_person, camera: camera.back_right, name: Back right }
         openings: []
 
   - title: Cameras

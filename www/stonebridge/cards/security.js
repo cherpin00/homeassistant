@@ -17,7 +17,7 @@ class StonebridgeSecurity extends SbCard {
     let best = null;
     for (const p of this.config.cameras_person ?? []) {
       if (this.on(p.entity)) return { camera: `the ${p.name.toLowerCase()} camera`, minutes: 0, now: true };
-      const m = this.minutesSince(p.entity);
+      const m = p.camera ? this.minutesSincePerson(p.camera) : null;
       if (m != null && (!best || m < best.minutes)) best = { camera: `the ${p.name.toLowerCase()} camera`, minutes: m };
     }
     return best;
@@ -34,7 +34,6 @@ class StonebridgeSecurity extends SbCard {
     const col = (ok) => (ok == null ? "#6b7486" : ok ? "#5fd4bf" : "#f2b45a");
     const personCol = last?.now ? "#e86a6a" : last && last.minutes < 30 ? "#9fb3d8" : "#5fd4bf";
     const alarmLabel = { disarmed: "Disarmed", armed_home: "Armed home", armed_away: "Armed away", armed_night: "Armed night", triggered: "TRIGGERED", pending: "Pending", arming: "Arming" }[alarm] ?? "—";
-    const alarmChanged = relTime(this.minutesSince(c.alarm));
     const openCount = openings.filter((o) => o.open).length;
 
     const node = (x, y, colr, ic, label, labelY = y + 36) => `
@@ -50,7 +49,7 @@ class StonebridgeSecurity extends SbCard {
           <circle cx="160" cy="118" r="58" fill="#132042" stroke="${alarm === "triggered" ? "#e86a6a" : alarm && alarm !== "disarmed" ? "#e86a6a88" : "#30477a"}" stroke-width="${alarm && alarm !== "disarmed" ? 3 : 1}"/>
           <path d="M160 84 l28 11 v22 c0 21 -13 34 -28 40 c-15 -6 -28 -19 -28 -40 v-22z" fill="#1a2b52" stroke="#9fb3d8" stroke-width="2"/>
           <text x="160" y="204" text-anchor="middle" fill="#e9edf3" font-size="22" font-weight="600">${alarmLabel}</text>
-          <text x="160" y="224" text-anchor="middle" fill="#9aa4b5" font-size="12">Alarmo${alarmChanged ? ` · ${alarmChanged}` : ""}</text>
+          <text x="160" y="224" text-anchor="middle" fill="#9aa4b5" font-size="12">Alarmo</text>
           ${node(160, 26, col(lock == null ? null : lock === "locked" && !jammed), "mdi:lock", jammed ? "Jammed" : lock === "unlocked" ? "Unlocked" : "Front lock", 62)}
           ${node(268, 96, col(garage == null ? null : garage === "closed"), "mdi:garage", garage === "closed" ? "Garage" : "Garage open")}
           ${node(268, 186, personCol, "mdi:cctv", last?.now ? "Person now" : last && last.minutes < 30 ? relTime(last.minutes) : "Cameras")}
