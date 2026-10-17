@@ -271,6 +271,30 @@ function report(message, hass) {
     .catch(() => {});
 }
 
+// Last person seen per Frigate camera, from Frigate's own event history (via the
+// Frigate integration's websocket API). Entity last_changed is NOT usable for
+// this: HA resets it on every restart, which made every camera read "18 min ago".
+// Shared by all cards; refreshed at most once a minute. null = unknown.
+const personCache = { at: 0, times: null, inflight: null, listeners: new Set() };
+function personTimes(hass, onUpdate) {
+  personCache.listeners.add(onUpdate);
+  if (!personCache.inflight && Date.now() - personCache.at > 60_000) {
+    personCache.at = Date.now();
+    personCache.inflight = hass.callWS({ type: "frigate/events/get", instance_id: "frigate", labels: ["person"], limit: 100 })
+      .then((raw) => {
+        const times = {};
+        for (const e of typeof raw === "string" ? JSON.parse(raw) : raw) {
+          const t = e.end_time ?? e.start_time;
+          if (!(e.camera in times) || t > times[e.camera]) times[e.camera] = t;
+        }
+        personCache.times = times;
+      })
+      .catch((e) => { personCache.times = null; report(`frigate/events/get failed: ${e?.message ?? JSON.stringify(e)}`, hass); })
+      .finally(() => { personCache.inflight = null; personCache.listeners.forEach((f) => f()); });
+  }
+  return personCache.times;
+}
+
 const BAD = new Set(["unavailable", "unknown", "", undefined, null]);
 
 // Shared card base. Subclasses implement:
@@ -323,6 +347,13 @@ class SbCard extends HTMLElement {
     const o = this.obj(id);
     if (!o || BAD.has(o.state)) return null;
     return (Date.now() - new Date(o.last_changed).getTime()) / 60_000;
+  }
+  // Minutes since Frigate last saw a person on this camera entity; null if unknown.
+  minutesSincePerson(cameraEntity) {
+    const times = personTimes(this._hass, this._personListener ??= () => this._render());
+    const cam = this.attr(cameraEntity, "camera_name");
+    const t = times && cam ? times[cam] : null;
+    return t ? Math.max(0, (Date.now() / 1000 - t) / 60) : null;
   }
   name(id, fallback) { return fallback ?? this.attr(id, "friendly_name") ?? id; }
 
@@ -511,7 +542,7 @@ class StonebridgeSecurity extends SbCard {
     let best = null;
     for (const p of this.config.cameras_person ?? []) {
       if (this.on(p.entity)) return { camera: `the ${p.name.toLowerCase()} camera`, minutes: 0, now: true };
-      const m = this.minutesSince(p.entity);
+      const m = p.camera ? this.minutesSincePerson(p.camera) : null;
       if (m != null && (!best || m < best.minutes)) best = { camera: `the ${p.name.toLowerCase()} camera`, minutes: m };
     }
     return best;
@@ -528,7 +559,6 @@ class StonebridgeSecurity extends SbCard {
     const col = (ok) => (ok == null ? "#6b7486" : ok ? "#5fd4bf" : "#f2b45a");
     const personCol = last?.now ? "#e86a6a" : last && last.minutes < 30 ? "#9fb3d8" : "#5fd4bf";
     const alarmLabel = { disarmed: "Disarmed", armed_home: "Armed home", armed_away: "Armed away", armed_night: "Armed night", triggered: "TRIGGERED", pending: "Pending", arming: "Arming" }[alarm] ?? "—";
-    const alarmChanged = relTime(this.minutesSince(c.alarm));
     const openCount = openings.filter((o) => o.open).length;
 
     const node = (x, y, colr, ic, label, labelY = y + 36) => `
@@ -544,7 +574,7 @@ class StonebridgeSecurity extends SbCard {
           <circle cx="160" cy="118" r="58" fill="#132042" stroke="${alarm === "triggered" ? "#e86a6a" : alarm && alarm !== "disarmed" ? "#e86a6a88" : "#30477a"}" stroke-width="${alarm && alarm !== "disarmed" ? 3 : 1}"/>
           <path d="M160 84 l28 11 v22 c0 21 -13 34 -28 40 c-15 -6 -28 -19 -28 -40 v-22z" fill="#1a2b52" stroke="#9fb3d8" stroke-width="2"/>
           <text x="160" y="204" text-anchor="middle" fill="#e9edf3" font-size="22" font-weight="600">${alarmLabel}</text>
-          <text x="160" y="224" text-anchor="middle" fill="#9aa4b5" font-size="12">Alarmo${alarmChanged ? ` · ${alarmChanged}` : ""}</text>
+          <text x="160" y="224" text-anchor="middle" fill="#9aa4b5" font-size="12">Alarmo</text>
           ${node(160, 26, col(lock == null ? null : lock === "locked" && !jammed), "mdi:lock", jammed ? "Jammed" : lock === "unlocked" ? "Unlocked" : "Front lock", 62)}
           ${node(268, 96, col(garage == null ? null : garage === "closed"), "mdi:garage", garage === "closed" ? "Garage" : "Garage open")}
           ${node(268, 186, personCol, "mdi:cctv", last?.now ? "Person now" : last && last.minutes < 30 ? relTime(last.minutes) : "Cameras")}
@@ -610,9 +640,13 @@ customElements.define("stonebridge-security", StonebridgeSecurity);
 // type: custom:stonebridge-cameras
 // config: cameras: [{camera, person, name}]  — first one is shown large and live.
 //
-// Unlike the other cards this one never replaces its whole shadow DOM: the live
-// stream lives in a container built once, and only the headline, badges and
-// snapshot grid are re-rendered. Rebuilding would restart the stream.
+// Unlike the other cards this one never replaces its whole shadow DOM: the main
+// camera lives in a container built once, and only the headline, badges and
+// snapshot grid are re-rendered.
+//
+// Live video is OFF by default (`live: true` to enable): HA reaches Frigate's
+// RTSP restream on :8554, which is not reachable from HA on this network, so a
+// live view renders blank. The main camera is a 2-second snapshot instead.
 class StonebridgeCameras extends SbCard {
   entities() {
     return (this.config.cameras ?? []).flatMap((c) => [c.camera, c.person]);
@@ -622,8 +656,9 @@ class StonebridgeCameras extends SbCard {
     super.connectedCallback();
     // entity_picture carries a rotating token; refresh snapshots every 10 s.
     this._snap = setInterval(() => this._refreshSnapshots(), 10_000);
+    this._mainSnap = setInterval(() => this._refreshSnapshots("main"), 2_000);
   }
-  disconnectedCallback() { super.disconnectedCallback(); clearInterval(this._snap); }
+  disconnectedCallback() { super.disconnectedCallback(); clearInterval(this._snap); clearInterval(this._mainSnap); }
 
   set hass(h) { super.hass = h; if (this._liveCard) this._liveCard.hass = h; }
   get hass() { return super.hass; }
@@ -632,7 +667,7 @@ class StonebridgeCameras extends SbCard {
     return (this.config.cameras ?? []).map((c) => ({
       ...c,
       personNow: this.on(c.person),
-      minutesSincePerson: this.on(c.person) === false ? this.minutesSince(c.person) : null,
+      minutesSincePerson: this.minutesSincePerson(c.camera),
     }));
   }
 
@@ -659,7 +694,7 @@ class StonebridgeCameras extends SbCard {
     const mainEl = root.getElementById("main");
     if (main) {
       mainEl.dataset.action = `open:${main.camera}`;
-      root.getElementById("mainname").textContent = `${main.name} (live)`;
+      root.getElementById("mainname").textContent = this.config.live ? `${main.name} (live)` : main.name;
       this._badge(root.getElementById("mainbadge"), main);
     } else mainEl.hidden = true;
     root.getElementById("grid").innerHTML = rest.map((c) => `
@@ -681,13 +716,14 @@ class StonebridgeCameras extends SbCard {
     return pic ? `${pic}${pic.includes("?") ? "&" : "?"}t=${Date.now()}` : null;
   }
 
-  _img(cam) {
+  _img(cam, group = "grid") {
     const src = this._src(cam);
-    return src ? `<img data-cam="${esc(cam)}" src="${esc(src)}" alt="">` : `<div class="nofeed">No feed</div>`;
+    return src ? `<img data-cam="${esc(cam)}" data-group="${group}" src="${esc(src)}" alt="">` : `<div class="nofeed">No feed</div>`;
   }
 
-  _refreshSnapshots() {
-    this.shadowRoot.querySelectorAll("img[data-cam]").forEach((img) => {
+  _refreshSnapshots(group = "grid") {
+    this.shadowRoot.querySelectorAll(`img[data-group="${group}"]`).forEach((img) => {
+      if (!img.complete) return; // previous frame still loading — don't pile up requests
       const src = this._src(img.dataset.cam);
       if (src) img.src = src;
     });
@@ -697,6 +733,7 @@ class StonebridgeCameras extends SbCard {
     const slot = this.shadowRoot.getElementById("live");
     const main = this.config.cameras?.[0];
     if (!slot || !main) return;
+    if (!this.config.live) { slot.innerHTML = this._img(main.camera, "main"); return; }
     try {
       const helpers = await window.loadCardHelpers?.();
       if (helpers) {
@@ -709,7 +746,7 @@ class StonebridgeCameras extends SbCard {
         return;
       }
     } catch (e) { console.warn("stonebridge: live view unavailable, using snapshots", e); }
-    slot.innerHTML = this._img(main.camera);
+    slot.innerHTML = this._img(main.camera, "main");
   }
 
   setConfig(config) {
@@ -1019,8 +1056,8 @@ class StonebridgeLights extends SbCard {
     const lights = this.all();
     const head = lightsHeadline(lights);
     const onLights = lights.filter((l) => l.on);
-    const longest = onLights.map((l) => ({ l, m: this.minutesSince(l.entity) })).sort((a, b) => b.m - a.m)[0];
-    const since = longest?.m != null ? `${longest.l.name} on since ${new Date(Date.now() - longest.m * 60_000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.` : null;
+    // Not "on since …": HA resets last_changed on restart, so that time can lie.
+    const since = onLights.length > 1 ? `${onLights.map((l) => l.name).join(", ")}.` : null;
 
     return `
     <div class="stack">
