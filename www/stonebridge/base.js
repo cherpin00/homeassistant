@@ -1,5 +1,38 @@
 import { theme } from "./theme.js";
 
+// Send a browser-side failure to HA's system log so it shows in `ha core logs`
+// (logger "stonebridge"). Card errors otherwise exist only in the browser console.
+export function report(message, hass) {
+  console.error(`stonebridge: ${message}`);
+  const h = hass ?? document.querySelector("home-assistant")?.hass;
+  h?.callWS?.({ type: "system_log/write", logger: "stonebridge", level: "error", message: String(message).slice(0, 2000) })
+    .catch(() => {});
+}
+
+// Last person seen per Frigate camera, from Frigate's own event history (via the
+// Frigate integration's websocket API). Entity last_changed is NOT usable for
+// this: HA resets it on every restart, which made every camera read "18 min ago".
+// Shared by all cards; refreshed at most once a minute. null = unknown.
+const personCache = { at: 0, times: null, inflight: null, listeners: new Set() };
+export function personTimes(hass, onUpdate) {
+  personCache.listeners.add(onUpdate);
+  if (!personCache.inflight && Date.now() - personCache.at > 60_000) {
+    personCache.at = Date.now();
+    personCache.inflight = hass.callWS({ type: "frigate/events/get", instance_id: "frigate", labels: ["person"], limit: 100 })
+      .then((raw) => {
+        const times = {};
+        for (const e of typeof raw === "string" ? JSON.parse(raw) : raw) {
+          const t = e.end_time ?? e.start_time;
+          if (!(e.camera in times) || t > times[e.camera]) times[e.camera] = t;
+        }
+        personCache.times = times;
+      })
+      .catch((e) => { personCache.times = null; report(`frigate/events/get failed: ${e?.message ?? JSON.stringify(e)}`, hass); })
+      .finally(() => { personCache.inflight = null; personCache.listeners.forEach((f) => f()); });
+  }
+  return personCache.times;
+}
+
 const BAD = new Set(["unavailable", "unknown", "", undefined, null]);
 
 // Shared card base. Subclasses implement:
@@ -16,7 +49,7 @@ export class SbCard extends HTMLElement {
   }
 
   setConfig(config) {
-    if (!config) throw new Error("Missing config");
+    if (!config) { report(`${this.localName}: missing config`, this._hass); throw new Error("Missing config"); }
     this.config = config;
     this._last = null;
     if (this._hass) this._render();
@@ -24,6 +57,7 @@ export class SbCard extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+    if (!this.config) return; // HA may hand us hass before setConfig
     const ids = this.entities().filter(Boolean);
     const snap = ids.map((id) => hass.states[id]);
     if (this._last && snap.every((s, i) => s === this._last[i])) return;
@@ -52,6 +86,13 @@ export class SbCard extends HTMLElement {
     if (!o || BAD.has(o.state)) return null;
     return (Date.now() - new Date(o.last_changed).getTime()) / 60_000;
   }
+  // Minutes since Frigate last saw a person on this camera entity; null if unknown.
+  minutesSincePerson(cameraEntity) {
+    const times = personTimes(this._hass, this._personListener ??= () => this._render());
+    const cam = this.attr(cameraEntity, "camera_name");
+    const t = times && cam ? times[cam] : null;
+    return t ? Math.max(0, (Date.now() / 1000 - t) / 60) : null;
+  }
   name(id, fallback) { return fallback ?? this.attr(id, "friendly_name") ?? id; }
 
   call(domain, service, data) { return this._hass.callService(domain, service, data); }
@@ -64,7 +105,10 @@ export class SbCard extends HTMLElement {
     if (!this._hass || !this.config) return;
     let html;
     try { html = this.render(); }
-    catch (e) { html = `<div class="card"><div class="eyebrow">Stonebridge card error</div><div class="sub">${esc(e.message)}</div></div>`; console.error(e); }
+    catch (e) {
+      html = `<div class="card"><div class="eyebrow">Stonebridge card error</div><div class="sub">${esc(e.message)}</div></div>`;
+      if (!this._reported) { this._reported = true; report(`${this.localName} render failed: ${e.stack ?? e}`, this._hass); }
+    }
     this.shadowRoot.innerHTML = `<style>${theme}${this.styles?.() ?? ""}</style>${html}`;
     this.afterRender?.();
   }
