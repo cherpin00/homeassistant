@@ -83,13 +83,16 @@ contact sensors later, and a floor-plan card after that.
   from `www/stonebridge/` → `/local/stonebridge/`. One entry module imports the
   shared pieces and every card and registers them as `custom:stonebridge-*`.
 - **Loaded via `frontend: extra_module_url`** in `configuration.yaml` (git
-  managed), not a storage-mode Lovelace resource (UI-only, not in git). The URL
-  carries a version query (`?v=N`) bumped on every change so the Companion app
-  does not serve stale code. Adding `extra_module_url` and the new dashboard
-  entry requires **one HA restart**; after that, card changes need only a
-  version bump + `hapull` + app refresh.
+  managed), not a storage-mode Lovelace resource (UI-only, not in git). HA
+  caches `/local/` hard, so `extra_module_url` points at a never-changing
+  `loader.js`, which fetches `dist/version.json` uncached and imports
+  `dist/stonebridge.js?v=<hash>`. The bundle is produced by
+  `tools/stonebridge-build.mjs` (plain Node, no dependencies) and committed;
+  a test fails if it is stale. Adding `extra_module_url` and the dashboard
+  needs **one HA restart**; afterwards card changes need only `hapull` + app
+  refresh.
 - **Dashboard**: `dashboards/stonebridge.yaml`, registered under
-  `lovelace: dashboards:` next to `tesla-car` (`stonebridge`, sidebar on, not
+  `lovelace: dashboards:` next to `tesla-car` (`stonebridge-home` — HA requires a hyphen — sidebar on, not
   admin-only).
 
 ### Layering (what makes it cheap to change)
