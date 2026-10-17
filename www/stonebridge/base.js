@@ -1,5 +1,14 @@
 import { theme } from "./theme.js";
 
+// Send a browser-side failure to HA's system log so it shows in `ha core logs`
+// (logger "stonebridge"). Card errors otherwise exist only in the browser console.
+export function report(message, hass) {
+  console.error(`stonebridge: ${message}`);
+  const h = hass ?? document.querySelector("home-assistant")?.hass;
+  h?.callWS?.({ type: "system_log/write", logger: "stonebridge", level: "error", message: String(message).slice(0, 2000) })
+    .catch(() => {});
+}
+
 const BAD = new Set(["unavailable", "unknown", "", undefined, null]);
 
 // Shared card base. Subclasses implement:
@@ -16,7 +25,7 @@ export class SbCard extends HTMLElement {
   }
 
   setConfig(config) {
-    if (!config) throw new Error("Missing config");
+    if (!config) { report(`${this.localName}: missing config`, this._hass); throw new Error("Missing config"); }
     this.config = config;
     this._last = null;
     if (this._hass) this._render();
@@ -24,6 +33,7 @@ export class SbCard extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+    if (!this.config) return; // HA may hand us hass before setConfig
     const ids = this.entities().filter(Boolean);
     const snap = ids.map((id) => hass.states[id]);
     if (this._last && snap.every((s, i) => s === this._last[i])) return;
@@ -64,7 +74,10 @@ export class SbCard extends HTMLElement {
     if (!this._hass || !this.config) return;
     let html;
     try { html = this.render(); }
-    catch (e) { html = `<div class="card"><div class="eyebrow">Stonebridge card error</div><div class="sub">${esc(e.message)}</div></div>`; console.error(e); }
+    catch (e) {
+      html = `<div class="card"><div class="eyebrow">Stonebridge card error</div><div class="sub">${esc(e.message)}</div></div>`;
+      if (!this._reported) { this._reported = true; report(`${this.localName} render failed: ${e.stack ?? e}`, this._hass); }
+    }
     this.shadowRoot.innerHTML = `<style>${theme}${this.styles?.() ?? ""}</style>${html}`;
     this.afterRender?.();
   }
