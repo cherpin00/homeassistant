@@ -1,0 +1,185 @@
+# Stonebridge dashboard. Cards are custom elements from www/stonebridge/
+# (loaded via frontend.extra_module_url → /local/stonebridge/loader.js).
+# Editing entities, rooms, floors or order here needs no code change.
+# After changing card CODE run `node tools/stonebridge-build.mjs` and commit dist/.
+title: Stonebridge
+views:
+  - title: Home
+    path: home
+    icon: mdi:home
+    type: panel
+    cards:
+      - type: custom:stonebridge-home
+        alarm: alarm_control_panel.alarmo
+        lock: lock.assure_2_biometric_deadbolt
+        lock_jammed: binary_sensor.assure_2_biometric_deadbolt_lock_jammed
+        garage: cover.ratgdo32disco_f9898c_door
+        weather: weather.home
+        outside_temp: sensor.outside_temperature
+        inside_temp: climate.ecobee_9505_stonebridge
+        car_battery: sensor.caleb_s_model_y_battery_level
+        car_location: device_tracker.caleb_s_model_y_location
+        vacuum: vacuum.roomba
+        lights_path: /stonebridge-home/lights
+        people:
+          - { entity: person.cherpin, name: Caleb }
+          - { entity: person.becca, name: Becca }
+        cameras_person:
+          - { entity: binary_sensor.doorbell_smart_person, name: Doorbell }
+          - { entity: binary_sensor.front_left_smart_person, name: Front left }
+          - { entity: binary_sensor.front_right_smart_person, name: Front right }
+          - { entity: binary_sensor.back_left_smart_person, name: Back left }
+          - { entity: binary_sensor.back_right_smart_person, name: Back right }
+        # Upstairs windows on the house drawing glow when any of these are on.
+        upstairs_lights:
+          - light.master_light
+          - light.master_entry_light
+          - light.s2_dimmer_2
+          - light.bed_1_light
+          - light.bed_2_light
+          - light.bed_3_ligh
+          - light.guest_bath_light
+          - light.hallway
+        lights:
+          - light.s2_dimmer
+          - light.kitchen_main_light
+          - light.wet_bar_light
+          - light.utility_light
+          - light.half_bath_light
+          - light.master_light
+          - light.master_entry_light
+          - light.master_bath_light
+          - light.s2_dimmer_2
+          - light.bed_1_light
+          - light.bed_2_light
+          - light.bed_3_ligh
+          - light.guest_bath_light
+          - light.hallway
+        # Door/window contact sensors go here once installed, e.g.
+        #   - { entity: binary_sensor.back_door_contact, name: Back door }
+        openings: []
+
+  - title: Lights
+    path: lights
+    icon: mdi:lightbulb-group
+    type: panel
+    cards:
+      - type: custom:stonebridge-lights
+        scenes:
+          - { entity: scene.movie, name: Movie, icon: mdi:movie-open }
+        # Floor assignment is a first guess — move lines between floors freely.
+        floors:
+          - name: Downstairs
+            lights:
+              - { entity: light.s2_dimmer, name: Living room, icon: mdi:sofa }
+              - { entity: light.kitchen_main_light, name: Kitchen, icon: mdi:countertop }
+              - { entity: light.wet_bar_light, name: Wet bar, icon: mdi:glass-wine }
+              - { entity: light.utility_light, name: Utility, icon: mdi:washing-machine }
+              - { entity: light.half_bath_light, name: Half bath, icon: mdi:toilet }
+          - name: Upstairs
+            lights:
+              - { entity: light.master_light, name: Master, icon: mdi:bed-king, fan: switch.master_fan }
+              - { entity: light.master_entry_light, name: Master entry, icon: mdi:door }
+              - { entity: light.master_bath_light, name: Master bath, icon: mdi:shower, fan: switch.master_bath_fan }
+              - { entity: light.s2_dimmer_2, name: Office, icon: mdi:desk }
+              - { entity: light.bed_1_light, name: Bed 1, icon: mdi:bed, fan: switch.bed_1_fan }
+              - { entity: light.bed_2_light, name: Bed 2, icon: mdi:bed, fan: switch.bed_2_fan }
+              - { entity: light.bed_3_ligh, name: Bed 3, icon: mdi:bed, fan: switch.bed_3_fan }
+              - { entity: light.guest_bath_light, name: Guest bath, icon: mdi:shower, fan: switch.guest_bath_fan }
+              - { entity: light.hallway, name: Hallway, icon: mdi:wall-sconce-flat }
+          - name: Outside
+            lights:
+              - { entity: light.ratgdo32disco_f9898c_light, name: Garage, icon: mdi:garage }
+              - { entity: light.front_left_floodlight, name: Front left, icon: mdi:light-flood-down }
+              - { entity: light.front_right_floodlight, name: Front right, icon: mdi:light-flood-down }
+              - { entity: light.living_room_floodlight, name: Back left, icon: mdi:light-flood-down }
+              - { entity: light.back_right_floodlight, name: Back right, icon: mdi:light-flood-down }
+
+  - title: Climate
+    path: climate
+    icon: mdi:thermometer
+    type: panel
+    cards:
+      - type: custom:stonebridge-climate
+        thermostat: climate.ecobee_9505_stonebridge
+        thermostat_name: ecobee
+        outside_temp: sensor.outside_temperature
+        # New temperature sensors: add a line here. `humidity` and `source` are optional.
+        rooms:
+          - { name: Thermostat, temperature: climate.ecobee_9505_stonebridge, humidity: climate.ecobee_9505_stonebridge, source: ecobee }
+          - { name: I-9PSL sensor, temperature: sensor.i_9psl_temperature, humidity: sensor.i_9psl_humidity, source: room unknown }
+          - { name: Echo Dot, temperature: sensor.caleb_s_3rd_echo_dot_temperature, source: room unknown }
+        bill:
+          to_date: sensor.stonebridge_austing_energy_current_bill_electric_cost_to_date
+          forecast: sensor.stonebridge_austing_energy_current_bill_electric_forecasted_cost
+
+  - title: Model Y
+    path: car
+    icon: mdi:car-electric
+    type: panel
+    cards:
+      - type: custom:stonebridge-car
+        name: Model Y
+        battery: sensor.caleb_s_model_y_battery_level
+        range: sensor.caleb_s_model_y_battery_range
+        charging: sensor.caleb_s_model_y_charging
+        charge_cable: binary_sensor.caleb_s_model_y_charge_cable
+        charge_limit: number.caleb_s_model_y_charge_limit
+        time_to_full: sensor.caleb_s_model_y_time_to_full_charge
+        location: device_tracker.caleb_s_model_y_location
+        garage_car_inside: binary_sensor.ratgdo32disco_f9898c_vehicle_detected
+        status: binary_sensor.caleb_s_model_y_status
+        lock: lock.caleb_s_model_y_lock
+        sentry: switch.caleb_s_model_y_sentry_mode
+        climate: climate.caleb_s_model_y_climate
+        inside_temp: sensor.caleb_s_model_y_inside_temperature
+        outside_temp: sensor.caleb_s_model_y_outside_temperature
+        trunk: cover.caleb_s_model_y_trunk
+        frunk: cover.caleb_s_model_y_frunk
+        charge_port: cover.caleb_s_model_y_charge_port_door
+        windows: cover.caleb_s_model_y_windows
+        flash: button.caleb_s_model_y_flash_lights
+        update: update.caleb_s_model_y_update
+        precondition_enabled: input_boolean.tesla_precondition_enabled
+        precondition_pending: sensor.precond_manual_pending
+        doors:
+          - binary_sensor.caleb_s_model_y_front_driver_door
+          - binary_sensor.caleb_s_model_y_front_passenger_door
+          - binary_sensor.caleb_s_model_y_rear_driver_door
+          - binary_sensor.caleb_s_model_y_rear_passenger_door
+        # Tyre pressures: enable the Tesla tyre-pressure entities in HA, then e.g.
+        # tyres: { fl: sensor.caleb_s_model_y_tire_pressure_front_left, ..., recommended: 42 }
+
+  - title: Security
+    path: security
+    icon: mdi:shield-home
+    type: panel
+    cards:
+      - type: custom:stonebridge-security
+        alarm: alarm_control_panel.alarmo
+        lock: lock.assure_2_biometric_deadbolt
+        lock_jammed: binary_sensor.assure_2_biometric_deadbolt_lock_jammed
+        lock_battery: sensor.assure_2_biometric_deadbolt_battery_level
+        garage: cover.ratgdo32disco_f9898c_door
+        garage_close_script: script.garage_close_safely
+        garage_remotes: lock.ratgdo32disco_f9898c_lock_remotes
+        cameras_person:
+          - { entity: binary_sensor.doorbell_smart_person, name: Doorbell }
+          - { entity: binary_sensor.front_left_smart_person, name: Front left }
+          - { entity: binary_sensor.front_right_smart_person, name: Front right }
+          - { entity: binary_sensor.back_left_smart_person, name: Back left }
+          - { entity: binary_sensor.back_right_smart_person, name: Back right }
+        openings: []
+
+  - title: Cameras
+    path: cameras
+    icon: mdi:cctv
+    type: panel
+    cards:
+      - type: custom:stonebridge-cameras
+        cameras:
+          - { camera: camera.doorbell, person: binary_sensor.doorbell_smart_person, name: Doorbell }
+          - { camera: camera.front_left, person: binary_sensor.front_left_smart_person, name: Front left }
+          - { camera: camera.front_right, person: binary_sensor.front_right_smart_person, name: Front right }
+          - { camera: camera.back_left, person: binary_sensor.back_left_smart_person, name: Back left }
+          - { camera: camera.back_right, person: binary_sensor.back_right_smart_person, name: Back right }

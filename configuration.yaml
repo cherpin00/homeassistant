@@ -3,6 +3,10 @@ default_config:
 
 frontend:
   themes: !include_dir_merge_named themes
+  # Stonebridge dashboard cards. loader.js never changes; it fetches the
+  # current bundle version itself, so card updates need no restart.
+  extra_module_url:
+    - /local/stonebridge/loader.js
 
 group: !include groups.yaml
 input_number: !include input_numbers.yaml
@@ -92,5 +96,12 @@ lovelace:
       filename: dashboards/tesla.yaml
       title: Tesla
       icon: mdi:car
+      show_in_sidebar: true
+      require_admin: false
+    stonebridge-home:
+      mode: yaml
+      filename: dashboards/stonebridge.yaml
+      title: Stonebridge
+      icon: mdi:home-variant
       show_in_sidebar: true
       require_admin: false
