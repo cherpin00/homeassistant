@@ -1,0 +1,28 @@
+- id: '1790055775073'
+  name: Movie
+  entities:
+    light.s2_dimmer:
+      supported_color_modes:
+      - brightness
+      color_mode:
+      brightness:
+      friendly_name: Living room main light
+      supported_features: 32
+      state: 'off'
+    light.s2_dimmer_2:
+      supported_color_modes:
+      - brightness
+      color_mode:
+      brightness:
+      friendly_name: Office main light
+      supported_features: 32
+      state: 'off'
+    light.kitchen_main_light:
+      supported_color_modes:
+      - brightness
+      color_mode:
+      brightness:
+      friendly_name: Kitchen main light
+      supported_features: 32
+      state: 'off'
+  metadata: {}
