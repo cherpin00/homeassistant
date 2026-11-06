@@ -25,7 +25,7 @@
       - trigger: state
         entity_id: lock.assure_2_biometric_deadbolt
         to: locked
-      timeout: '00:00:30'
+      timeout: 00:00:30
       continue_on_timeout: true
     - alias: Warn if the bolt never confirmed, but keep going
       if:
@@ -104,3 +104,18 @@
       message: The front door has been automatically locked.
   mode: queued
   max: 5
+- id: morning_ac_cool_67
+  alias: 'Morning AC: cool to 67 at 6:45'
+  description: Turns the ecobee to cool at 67°F every morning at 6:45.
+  triggers:
+  - trigger: time
+    at: 06:45:00
+  conditions: []
+  actions:
+  - action: climate.set_temperature
+    target:
+      entity_id: climate.ecobee_9505_stonebridge
+    data:
+      hvac_mode: cool
+      temperature: 67
+  mode: single
