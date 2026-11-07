@@ -436,8 +436,9 @@ ask_openclaw:
     anything Home Assistant cannot do itself: Caleb's email, calendar and Google
     tasks; the homelab (Kubernetes, services, git, pull requests); web lookups.
     It remembers earlier voice requests, so follow-ups like "what did you find
-    earlier" work. Pass Caleb's request in full. The reply may be long; summarize
-    it in a sentence or two for speech.
+    earlier" work. Pass Caleb's request in full. OpenClaw's full answer is pushed to
+    Caleb's phone as a notification, so speak only a short confirmation or the one
+    key fact; use the full reply to answer follow-up questions.
   mode: parallel
   fields:
     message:
@@ -453,8 +454,25 @@ ask_openclaw:
         message: "{{ message }}"
       response_variable: openclaw
     - variables:
+        ok: "{{ openclaw.status == 200 }}"
+        reply: >-
+          {% if openclaw.status == 200 %}{{ openclaw.content.choices[0].message.content }}{% else %}OpenClaw returned HTTP {{ openclaw.status }}.{% endif %}
+    # The full answer goes to the phone; Iris only speaks a confirmation.
+    - if:
+        - condition: template
+          value_template: "{{ ok }}"
+      then:
+        - action: notify.mobile_app_pixel_10
+          continue_on_error: true
+          data:
+            title: OpenClaw
+            message: "{{ reply }}"
+            data:
+              group: openclaw
+              notification_icon: mdi:robot
+    - variables:
         result:
-          reply: >-
-            {% if openclaw.status == 200 %}{{ openclaw.content.choices[0].message.content }}{% else %}OpenClaw returned HTTP {{ openclaw.status }}.{% endif %}
+          reply: "{{ reply }}"
+          details_sent_to_phone: "{{ ok }}"
     - stop: OpenClaw replied
       response_variable: result
