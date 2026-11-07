@@ -87,6 +87,20 @@ rest_command:
     verify_ssl: false
     payload: "{{ event }}"
     content_type: 'application/json; charset=utf-8'
+  # OpenClaw's OpenAI-compatible gateway endpoint, used by script.ask_openclaw.
+  # `user: ha-voice` pins every call to one stable OpenClaw session, so voice
+  # requests share a thread and OpenClaw does its own compaction. The secret is
+  # the full header value: "Bearer <gateway token>".
+  openclaw_chat:
+    url: https://openclaw.stone.herpin.xyz/v1/chat/completions
+    method: POST
+    timeout: 60
+    headers:
+      Authorization: !secret openclaw_gateway_auth
+    content_type: application/json
+    payload: >-
+      {{ {"model": "openclaw", "user": "ha-voice",
+          "messages": [{"role": "user", "content": message}]} | to_json }}
 
 lovelace:
   mode: storage

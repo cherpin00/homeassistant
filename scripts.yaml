@@ -429,3 +429,32 @@ garage_close_safely:
               Door did not reach closed within 30s
               ({{ reason | default('requested', true) }}). Currently:
               {{ states('cover.ratgdo32disco_f9898c_door') }}.
+ask_openclaw:
+  alias: Ask OpenClaw
+  description: >-
+    Ask OpenClaw, Caleb's personal AI agent, and get its answer back. Use it for
+    anything Home Assistant cannot do itself: Caleb's email, calendar and Google
+    tasks; the homelab (Kubernetes, services, git, pull requests); web lookups.
+    It remembers earlier voice requests, so follow-ups like "what did you find
+    earlier" work. Pass Caleb's request in full. The reply may be long; summarize
+    it in a sentence or two for speech.
+  mode: parallel
+  fields:
+    message:
+      name: Message
+      description: The request for OpenClaw, in plain language.
+      required: true
+      selector:
+        text:
+          multiline: true
+  sequence:
+    - action: rest_command.openclaw_chat
+      data:
+        message: "{{ message }}"
+      response_variable: openclaw
+    - variables:
+        result:
+          reply: >-
+            {% if openclaw.status == 200 %}{{ openclaw.content.choices[0].message.content }}{% else %}OpenClaw returned HTTP {{ openclaw.status }}.{% endif %}
+    - stop: OpenClaw replied
+      response_variable: result
