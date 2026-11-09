@@ -101,13 +101,17 @@ the other armed modes is an edit to that trigger — not a second copy of this.
 Device suffix `f9898c`. Lives in `automations/garage.yaml` plus
 `script.garage_close_safely` in `scripts.yaml`.
 
-**The laser points at the bay, not the driveway.** The Disco's time-of-flight
-sensor is aimed down at the parking spot, so:
+**The bay laser cannot see the Model Y.** The Disco's time-of-flight sensor
+points down at the parking spot, but the beam goes through the glass roof and
+reads the floor (~2,450 mm with or without the car). `_vehicle_detected`,
+`_vehicle_arriving` and `_vehicle_leaving` never change, so do not wire anything
+to them.
 
-- `binary_sensor.ratgdo32disco_f9898c_vehicle_leaving` = the car left the bay.
-  This is the auto-close trigger — local, instant, no cloud.
-- `binary_sensor.ratgdo32disco_f9898c_vehicle_arriving` = the car is *already
-  inside*. Useless for auto-open. Do not wire auto-open to it.
+**Auto-close runs off the Model Y's GPS.** When the door opens with the car home,
+`garage_auto_close_on_departure` refreshes the car's location every 10 s for up
+to 5 minutes and closes the door once the car has left `zone.home` (100 m). It
+needs no navigation. Polling a sleeping car is free and does not wake it, and
+only an awake car costs a billed `vehicle_data` call.
 
 **Auto-open runs off the Model Y's GPS** (switched from the phone on
 2026-10-07, so it fires only when the car is what's arriving). A `proximity`
@@ -138,8 +142,8 @@ that first sees it inside the zone means it has sat on the driveway for minutes.
 
 **Safety**: every guard is advisory. The real protection is the opener's
 photo-eye beam, surfaced as `_obstruction`, which `script.garage_close_safely`
-checks before moving the door and which the auto-close path re-checks after its
-clearance delay. Nothing here should be treated as a safety interlock.
+checks before moving the door. Nothing here should be treated as a safety
+interlock.
 
 **Notification actions**: `GARAGE_CLOSE`, `GARAGE_SNOOZE`, `GARAGE_CANCEL_CLOSE`
 are handled by event triggers on `mobile_app_notification_action`.

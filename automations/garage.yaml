@@ -2,10 +2,10 @@
 #
 # Design notes that are easy to get wrong later:
 #
-#   * The Disco's time-of-flight laser points DOWN AT THE BAY, not out the
-#     driveway. `_vehicle_leaving` therefore means "the car left the bay" (a
-#     great auto-close trigger) while `_vehicle_arriving` means "the car is
-#     already inside" and is useless for auto-open. Auto-open has to come from
+#   * The Disco's time-of-flight laser points down at the bay, but it cannot
+#     see the Model Y: the beam goes through the glass roof and reads the floor
+#     (~2,450 mm car or no car). `_vehicle_detected`, `_arriving` and `_leaving`
+#     therefore never change. Both auto-open and auto-close have to come from
 #     the car's GPS instead.
 #
 #   * Auto-open keys off the Model Y, not a phone, so it only fires when the
@@ -189,41 +189,79 @@
 - id: garage_auto_close_on_departure
   alias: Garage - Auto Close on Departure
   description: >-
-    Closes the garage after the Model Y pulls out of the bay, once the car has
-    had time to clear the apron.
+    When the door opens with the Model Y home, force-refreshes the car's
+    location for a few minutes and closes the door once the car has left the
+    home zone.
+  # A car that is asleep is deliberately still polled. The integration checks
+  # with a free call that does not wake it and only then fetches billed
+  # vehicle_data, and the door is usually opened before the car has woken.
   mode: single
+  max_exceeded: silent
+  variables:
+    # Matches the integration's 10 s refresh cooldown.
+    poll_interval_s: 10
+    # Five minutes. Past this, garage_left_open_alert takes over.
+    max_polls: 30
   triggers:
     - trigger: state
-      entity_id: binary_sensor.ratgdo32disco_f9898c_vehicle_leaving
-      to: "on"
+      entity_id: cover.ratgdo32disco_f9898c_door
+      from: opening
+      to: open
   conditions:
     - condition: state
       entity_id: input_boolean.garage_auto_close_enabled
       state: "on"
-    - condition: not
-      conditions:
-        - condition: state
-          entity_id: cover.ratgdo32disco_f9898c_door
-          state: closed
+    - condition: state
+      entity_id: device_tracker.caleb_s_model_y_location
+      state: home
   actions:
-    - alias: Let the car clear the apron
-      delay:
-        seconds: "{{ states('input_number.garage_auto_close_delay_seconds') | int(25) }}"
-    - alias: Abort if anything changed during the clearance delay
+    - alias: Get a fresh location before trusting "home"
+      action: homeassistant.update_entity
+      target:
+        entity_id: device_tracker.caleb_s_model_y_location
+      continue_on_error: true
+    # "home" can be up to 10 minutes stale. If the car turns out to be long
+    # gone, someone else opened the door and must not have it closed on them.
+    - alias: Only watch a car that is really still here
+      condition: state
+      entity_id: device_tracker.caleb_s_model_y_location
+      state: home
+    - repeat:
+        while:
+          # Unavailable is an API blip, not a departure, so keep polling.
+          - condition: state
+            entity_id: device_tracker.caleb_s_model_y_location
+            state:
+              - home
+              - unavailable
+              - unknown
+          - condition: state
+            entity_id: cover.ratgdo32disco_f9898c_door
+            state: open
+          - condition: template
+            value_template: "{{ repeat.index <= max_polls }}"
+        sequence:
+          - delay:
+              seconds: "{{ poll_interval_s }}"
+          - alias: Force a Fleet API refresh of the car
+            action: homeassistant.update_entity
+            target:
+              entity_id: device_tracker.caleb_s_model_y_location
+            continue_on_error: true
+    - alias: Close only if the car left and the door is still open
       condition: and
       conditions:
         - condition: state
-          entity_id: binary_sensor.ratgdo32disco_f9898c_obstruction
-          state: "off"
-        # Car pulled back in — leave the door alone.
-        - condition: state
-          entity_id: binary_sensor.ratgdo32disco_f9898c_vehicle_detected
-          state: "off"
+          entity_id: cover.ratgdo32disco_f9898c_door
+          state: open
         - condition: not
           conditions:
             - condition: state
-              entity_id: cover.ratgdo32disco_f9898c_door
-              state: closed
+              entity_id: device_tracker.caleb_s_model_y_location
+              state:
+                - home
+                - unavailable
+                - unknown
     - action: script.garage_close_safely
       data:
         reason: auto-close after departure
