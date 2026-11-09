@@ -116,7 +116,7 @@ config entry titled "Home" tracks `device_tracker.pixel_10` and
 got the ambiguous ids `sensor.home_location_distance` /
 `_direction_of_travel` (from the tracker's name "Location") — renaming them
 breaks the garage automations. Distance reports **feet**, not meters.
-`input_number.garage_approach_distance_ft` (default 1150 ft ~ 350 m) is read
+`input_number.garage_approach_distance_ft` (default 700 ft ~ 215 m) is read
 directly by the trigger's `below:`, so the radius is tunable from the UI.
 
 **The Tesla only polls every 10 minutes**, far too slow to catch a 1150 ft

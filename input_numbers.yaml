@@ -147,7 +147,8 @@ garage_auto_open_cooldown_minutes:
 # (sensor.home_location_distance). Must comfortably exceed the ~440 ft the car
 # covers between fast polls at 30 mph — see automations/garage.yaml.
 # FEET, not meters - the proximity sensor reports imperial on this instance.
-# 1150 ft is ~350 m, roughly 26 s of warning at 30 mph against a 10.3 s open.
+# 700 ft is ~215 m. At 1150 ft the door started 55-80 s ahead of the nav ETA
+# (Nov 2026), and the car slows well below 30 mph on the last stretch.
 # Tunable from the UI; the numeric_state trigger reads this entity directly.
 garage_approach_distance_ft:
   name: Garage Approach Distance (Feet)
@@ -156,7 +157,7 @@ garage_approach_distance_ft:
   step: 50
   mode: box
   unit_of_measurement: ft
-  initial: 1150
+  initial: 700
 
 # Hour of day (0-23) at which an still-open garage gets force-closed.
 garage_night_close_hour:
