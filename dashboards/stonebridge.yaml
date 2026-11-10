@@ -184,3 +184,56 @@ views:
           - { camera: camera.front_right, person: binary_sensor.front_right_smart_person, name: Front right }
           - { camera: camera.back_left, person: binary_sensor.back_left_smart_person, name: Back left }
           - { camera: camera.back_right, person: binary_sensor.back_right_smart_person, name: Back right }
+  - title: Alarm Guide
+    path: alarm-guide
+    icon: mdi:shield-key
+    type: panel
+    cards:
+      - type: markdown
+        content: |
+          ## Alarm panel cheat sheet
+
+          Button names are from the UNO5500 keypad guide, so an older DSC keypad may differ slightly.
+
+          ### Arming and disarming
+
+          | Do this | What happens |
+          |---|---|
+          | Enter your code | Arms with the exit countdown, or disarms if armed |
+          | Hold **Stay** | Arms for when you're home |
+          | Hold **Away** | Arms for when you're leaving |
+          | Hold **Panic** | **Sends an emergency signal. Don't test it.** |
+
+          ### Keypad commands
+
+          | Press | What it does |
+          |---|---|
+          | `#` | Show open zones |
+          | `*1` + zone number | Bypass a zone |
+          | `*2` | Show troubles |
+          | `*4` | Door chime on or off |
+          | `*6` + master code | Keypad screen and volume |
+          | `*7` + output number | Toggle an output |
+          | `*8` + installer code | Keypad installer settings |
+
+          A bypass clears by itself the next time the panel is disarmed.
+
+          ### Troubles (`*2`)
+
+          The STAT light on the panel flashes this many times:
+
+          | Flashes | Trouble |
+          |---|---|
+          | 1 | Service required |
+          | 2 | AC power failure |
+          | 3 | Wireless device low battery |
+          | 4 | Panel offline from EyezOn |
+          | 5 | Zone trouble |
+          | 6 | System battery |
+          | 7 | Siren or bell |
+          | 8 | Wireless device supervisory |
+
+          ### Changing settings
+
+          Zones, user codes and delays can only be changed at [portal.eyezon.com](https://portal.eyezon.com/app/index.php):
+          **Details → Settings → Actions → Update UNO Programming**, then press **Upload To Panel** in each section.
