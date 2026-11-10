@@ -64,4 +64,23 @@ export const theme = `
 .muted { opacity: .45; }
 .big { font-size: 56px; font-weight: 300; line-height: 1; }
 .unavail { color: var(--sb-dim); }
+.plan { display: block; width: 100%; }
+.plan .shell { fill: #46536f; stroke: #46536f; stroke-width: 6; stroke-linejoin: round; }
+.plan.armed .shell { stroke: var(--sb-alert); }
+.plan .room { fill: #1b2230; }
+.plan .room.lit { fill: #f2c27a; }
+.plan .room.dead { fill: #20242c; stroke: var(--sb-dim); stroke-width: 2; stroke-dasharray: 8 8; }
+.plan .tap { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.plan text { fill: var(--sb-muted); text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
+.plan text.lit { fill: #2a2216; font-weight: 500; }
+.plan text.dead { fill: var(--sb-dim); }
+.plan .mark { color: var(--sb-dim); }
+.plan .mark .hit { fill: transparent; }
+.plan .mark .disc { fill: #131a26; stroke: currentColor; stroke-width: 3; }
+.plan .mark .glyph { color: inherit; --mdc-icon-size: 34px; display: grid; place-items: center; height: 40px; pointer-events: none; }
+.plan .mark text { fill: currentColor; }
+.plan .mark.ok { color: var(--sb-ok); } .plan .mark.warn { color: var(--sb-warn); }
+.plan .mark.alert { color: var(--sb-alert); } .plan .mark.info { color: var(--sb-info); }
+.plan .mark.alert .disc { fill: #4a1f1f; }
+.plan .mark.lit { color: #f2c27a; } .plan .mark.lit .disc { fill: #5a4520; }
 `;

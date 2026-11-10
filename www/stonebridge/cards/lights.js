@@ -1,9 +1,12 @@
 import { SbCard, esc, icon } from "../base.js";
 import { lightsHeadline } from "../headlines.js";
+import { floorplan, planSpot } from "../floorplan.js";
 
 // type: custom:stonebridge-lights
-// config: floors: [{name, all?, lights: [{entity, name, icon?, fan?}]}],
-//   scenes: [{entity, name, icon}]
+// config: floors: [{name, all?, lights: [{entity, name, icon?, fan?, room?, spot?, at?}]}],
+//   scenes: [{entity, name, icon}], plan: false to hide the floor plan
+// A light with a `room` (see floorplan.js) lights that room on the plan; one with
+// a `spot` or `at: [x, y]` is a marker outside. Tapping either switches it.
 // A floor with `all: false` is left out of the All on / All off buttons.
 // A light's optional `fan` (switch) shows as a small toggle on its tile.
 class StonebridgeLights extends SbCard {
@@ -31,6 +34,7 @@ class StonebridgeLights extends SbCard {
         <div class="headline">${esc(head.text)}</div>
         ${since ? `<div class="sub">${esc(since)}</div>` : ""}
       </div>
+      ${this.plan(lights)}
       <div class="grid g4">
         ${(c.scenes ?? []).map((s) => `<button class="round" data-action="scene:${esc(s.entity)}"><span class="btn">${icon(s.icon ?? "mdi:palette")}</span><span>${esc(s.name)}</span></button>`).join("")}
         <button class="round" data-action="all_on"><span class="btn">${icon("mdi:lightbulb-on")}</span><span>All on</span></button>
@@ -40,6 +44,29 @@ class StonebridgeLights extends SbCard {
         <div class="section">${esc(f.name)}</div>
         <div class="grid g3">${f.lights.map((l) => this.tile(l)).join("")}</div>`).join("")}
     </div>`;
+  }
+
+  byRoom(lights) {
+    const rooms = {};
+    for (const l of lights) if (l.room) (rooms[l.room] ??= []).push(l);
+    return rooms;
+  }
+
+  plan(lights) {
+    if (this.config.plan === false) return "";
+    const rooms = Object.fromEntries(Object.entries(this.byRoom(lights)).map(([id, ls]) => {
+      const on = ls.filter((l) => l.on);
+      const level = Math.max(0, ...on.map((l) => (this.attr(l.entity, "brightness") ?? 255) / 255));
+      return [id, {
+        cls: on.length ? "lit" : ls.every((l) => l.on == null) ? "dead" : "",
+        label: ls.length === 1 ? ls[0].name : undefined, level, action: `room:${id}`,
+      }];
+    }));
+    const markers = lights.filter((l) => !l.room).map((l) => ({
+      at: planSpot(l), icon: l.icon ?? "mdi:lightbulb", cls: l.on ? "lit" : "", action: `toggle:${l.entity}`,
+    })).filter((m) => m.at);
+    if (!Object.keys(rooms).length && !markers.length) return "";
+    return `<div class="card navy" style="padding:10px">${floorplan({ rooms, markers })}</div>`;
   }
 
   tile(l) {
@@ -60,6 +87,11 @@ class StonebridgeLights extends SbCard {
     const [verb, id] = [action.split(":")[0], action.slice(action.indexOf(":") + 1)];
     const ids = (this.config.floors ?? []).filter((f) => f.all !== false).flatMap((f) => f.lights.map((l) => l.entity));
     switch (verb) {
+      case "room": {
+        // One tap for the whole room: off if anything is on, otherwise on.
+        const ls = this.byRoom(this.all())[id] ?? [];
+        return this.call("light", ls.some((l) => l.on) ? "turn_off" : "turn_on", { entity_id: ls.map((l) => l.entity) });
+      }
       case "toggle": return this.call("light", "toggle", { entity_id: id });
       case "fan": return this.call("switch", "toggle", { entity_id: id });
       case "scene": return this.call("scene", "turn_on", { entity_id: id });

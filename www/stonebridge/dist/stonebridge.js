@@ -66,6 +66,25 @@ const theme = `
 .muted { opacity: .45; }
 .big { font-size: 56px; font-weight: 300; line-height: 1; }
 .unavail { color: var(--sb-dim); }
+.plan { display: block; width: 100%; }
+.plan .shell { fill: #46536f; stroke: #46536f; stroke-width: 6; stroke-linejoin: round; }
+.plan.armed .shell { stroke: var(--sb-alert); }
+.plan .room { fill: #1b2230; }
+.plan .room.lit { fill: #f2c27a; }
+.plan .room.dead { fill: #20242c; stroke: var(--sb-dim); stroke-width: 2; stroke-dasharray: 8 8; }
+.plan .tap { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.plan text { fill: var(--sb-muted); text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
+.plan text.lit { fill: #2a2216; font-weight: 500; }
+.plan text.dead { fill: var(--sb-dim); }
+.plan .mark { color: var(--sb-dim); }
+.plan .mark .hit { fill: transparent; }
+.plan .mark .disc { fill: #131a26; stroke: currentColor; stroke-width: 3; }
+.plan .mark .glyph { color: inherit; --mdc-icon-size: 34px; display: grid; place-items: center; height: 40px; pointer-events: none; }
+.plan .mark text { fill: currentColor; }
+.plan .mark.ok { color: var(--sb-ok); } .plan .mark.warn { color: var(--sb-warn); }
+.plan .mark.alert { color: var(--sb-alert); } .plan .mark.info { color: var(--sb-info); }
+.plan .mark.alert .disc { fill: #4a1f1f; }
+.plan .mark.lit { color: #f2c27a; } .plan .mark.lit .disc { fill: #5a4520; }
 `;
 
 // --- headlines.js
@@ -410,6 +429,98 @@ function esc(s) {
 
 function icon(name) { return `<ha-icon icon="${esc(name)}"></ha-icon>`; }
 
+// --- floorplan.js
+
+// The house, traced from the measured plan dated 09/05/2025 ("Full House Plan",
+// 1:110). Coordinates are that drawing's pixels. The street side — front door
+// and garage — is the bottom edge. Rooms sit slightly inside their walls, so the
+// shell showing through the gaps reads as the walls.
+const SHELL = "318,405 990,405 990,170 1420,170 1420,1087 990,1087 990,980 318,980";
+const ROOMS = {
+  garage: { name: "Garage", pts: "328,622 655,622 655,970 328,970", at: [491, 806] },
+  laundry: { name: "Laundry", pts: "328,415 480,415 480,612 328,612", at: [404, 524] },
+  kitchen: { name: "Kitchen", pts: "487,415 700,415 700,612 487,612", at: [593, 524] },
+  living: { name: "Living room", pts: "706,415 1135,415 1135,480 1088,480 1088,750 990,750 990,975 910,975 910,750 660,750 660,618 706,618", at: [880, 590] },
+  office: { name: "Office", pts: "660,756 905,756 905,970 660,970", at: [782, 872] },
+  wet_bar: { name: "", pts: "994,752 1082,752 1082,786 994,786", at: [1038, 776] },
+  half_bath: { name: "", pts: "994,792 1082,792 1082,880 994,880", at: [1038, 844] },
+  hall_closet: { name: "", pts: "1088,758 1170,758 1170,880 1088,880", at: [1129, 820] },
+  hallway: { name: "", pts: "1095,690 1235,690 1235,890 1178,890 1178,752 1095,752", at: [1165, 722] },
+  bed_1: { name: "Bed 1", pts: "1242,692 1410,692 1410,862 1242,862", at: [1326, 786] },
+  bed_2: { name: "Bed 2", pts: "1178,898 1410,898 1410,1080 1178,1080", at: [1294, 998] },
+  bed_3: { name: "Bed 3", pts: "994,888 1170,888 1170,1080 994,1080", at: [1082, 993] },
+  guest_bath: { name: "Guest bath", pts: "1217,597 1410,597 1410,685 1217,685", at: [1313, 650] },
+  primary_closet: { name: "Closet", pts: "1094,486 1209,486 1209,655 1094,655", at: [1151, 578] },
+  primary_bath: { name: "Bath", pts: "1217,442 1410,442 1410,590 1217,590", at: [1313, 524] },
+  closets: { name: "", pts: "1088,758 1172,758 1172,884 1088,884", at: [1130, 820] },
+  bed_1_closets: { name: "", pts: "1242,868 1410,868 1410,892 1242,892", at: [1326, 880] },
+  fireplace: { name: "", pts: "1000,358 1144,358 1144,405 1000,405", at: [1072, 382] },
+  primary_bed: { name: "Primary", pts: "1000,180 1410,180 1410,435 1150,435 1150,352 1000,352", at: [1215, 300] },
+};
+
+// Named places outside the rooms, for markers. The camera corners are as seen
+// from the street. A config entry can give `at: [x, y]` instead of a `spot`.
+const SPOTS = {
+  front_door: [948, 926],
+  doorbell: [948, 1052],
+  back_door: [408, 372],
+  garage_door: [491, 1012],
+  front_left: [286, 1012],
+  front_right: [1452, 1112],
+  back_left: [286, 372],
+  back_right: [1452, 146],
+};
+
+function planSpot(p) {
+  if (Array.isArray(p.at)) return p.at;
+  if (p.spot == null) return null;
+  if (!SPOTS[p.spot]) throw new Error(`floor plan has no spot "${p.spot}" (have: ${Object.keys(SPOTS).join(", ")})`);
+  return SPOTS[p.spot];
+}
+
+// rooms:   { id: { cls?, label?, action?, level? } } — rooms not listed are drawn plain.
+//          cls "lit" fills the room; level (0..1) is how strongly.
+// markers: [{ at: [x, y], icon, cls?, label?, action? }]
+// cls on the plan itself: "armed" outlines the house.
+function floorplan({ rooms = {}, markers = [], cls = "", labels = true } = {}) {
+  for (const id of Object.keys(rooms)) {
+    if (!ROOMS[id]) throw new Error(`floor plan has no room "${id}" (have: ${Object.keys(ROOMS).join(", ")})`);
+  }
+  const room = ([id, r]) => {
+    const s = rooms[id] ?? {};
+    const [w] = extent(r.pts);
+    const label = labels ? s.label ?? r.name : "";
+    // Shrink a label that would not fit its room.
+    const size = label ? Math.min(26, (w * 1.75) / label.length) : 0;
+    return `
+      <polygon class="room ${s.cls ?? ""} ${s.action ? "tap" : ""}" points="${r.pts}"
+        ${s.cls === "lit" ? `style="fill-opacity:${(0.35 + 0.55 * (s.level ?? 1)).toFixed(2)}"` : ""}
+        ${s.action ? `data-action="${esc(s.action)}"` : ""}/>
+      ${label && size >= 13 ? `<text class="${s.cls ?? ""}" x="${r.at[0]}" y="${r.at[1]}" font-size="${size.toFixed(1)}">${esc(label)}</text>` : ""}`;
+  };
+  // Labels near a side edge grow inward so they are not cut off.
+  const side = (x) => (x > 1380 ? ["end", 30] : x < 360 ? ["start", -30] : ["middle", 0]);
+  const mark = (m) => `
+    <g class="mark ${m.cls ?? ""} ${m.action ? "tap" : ""}" ${m.action ? `data-action="${esc(m.action)}"` : ""}>
+      <circle class="hit" cx="${m.at[0]}" cy="${m.at[1]}" r="52"/>
+      <circle class="disc" cx="${m.at[0]}" cy="${m.at[1]}" r="30"/>
+      <foreignObject x="${m.at[0] - 20}" y="${m.at[1] - 20}" width="40" height="40"><div xmlns="http://www.w3.org/1999/xhtml" class="glyph">${icon(m.icon)}</div></foreignObject>
+      ${m.label ? `<text style="text-anchor:${side(m.at[0])[0]}" x="${m.at[0] + side(m.at[0])[1]}" y="${m.at[1] + (m.at[1] > 600 ? 56 : -40)}" font-size="22">${esc(m.label)}</text>` : ""}
+    </g>`;
+  return `
+  <svg class="plan ${cls}" viewBox="236 96 1266 1086" aria-hidden="true">
+    <polygon class="shell" points="${SHELL}"/>
+    ${Object.entries(ROOMS).map(room).join("")}
+    ${markers.filter((m) => m.at).map(mark).join("")}
+  </svg>`;
+}
+
+function extent(pts) {
+  const xy = pts.split(" ").map((p) => p.split(",").map(Number));
+  const xs = xy.map((p) => p[0]), ys = xy.map((p) => p[1]);
+  return [Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)];
+}
+
 // --- cards/home.js
 {
 
@@ -528,9 +639,13 @@ customElements.define("stonebridge-home", StonebridgeHome);
 {
 
 
+
 // type: custom:stonebridge-security
 // config: alarm, lock, lock_jammed, garage, garage_close_script, garage_remotes,
-//   cameras_person: [{entity, name}], openings: [{entity, name}] (optional)
+//   cameras_person: [{entity, camera, name, spot?, at?}],
+//   openings: [{entity, name, spot?, at?}] (optional)
+// Cameras and openings with a `spot` (see floorplan.js) or `at: [x, y]` are
+// drawn on the floor plan, along with the front door lock and the garage door.
 class StonebridgeSecurity extends SbCard {
   static sensitive = ["disarm", "unlock", "garage_open"];
 
@@ -558,31 +673,37 @@ class StonebridgeSecurity extends SbCard {
     const last = this.lastPerson();
     const head = securityHeadline({ alarm, lock, jammed, garage, lastPerson: last, openings });
     const remotes = this.st(c.garage_remotes);
-    const col = (ok) => (ok == null ? "#6b7486" : ok ? "#5fd4bf" : "#f2b45a");
-    const personCol = last?.now ? "#e86a6a" : last && last.minutes < 30 ? "#9fb3d8" : "#5fd4bf";
     const alarmLabel = { disarmed: "Disarmed", armed_home: "Armed home", armed_away: "Armed away", armed_night: "Armed night", triggered: "TRIGGERED", pending: "Pending", arming: "Arming" }[alarm] ?? "—";
-    const openCount = openings.filter((o) => o.open).length;
+    const armed = alarm && alarm !== "disarmed";
+    const tone = (ok) => (ok == null ? "" : ok ? "ok" : "warn");
 
-    const node = (x, y, colr, ic, label, labelY = y + 36) => `
-      <circle cx="${x}" cy="${y}" r="20" fill="#132042" stroke="${colr}" stroke-width="2"/>
-      <foreignObject x="${x - 12}" y="${y - 12}" width="24" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="color:${colr};display:grid;place-items:center;height:24px">${icon(ic)}</div></foreignObject>
-      <text x="${x}" y="${labelY}" fill="${colr === "#5fd4bf" ? "#9aa4b5" : colr}" font-size="12" text-anchor="middle">${esc(label)}</text>`;
+    const markers = [
+      { at: planSpot({ spot: "front_door" }), icon: lock === "unlocked" ? "mdi:lock-open-variant" : "mdi:lock",
+        cls: jammed ? "alert" : tone(lock == null ? null : lock === "locked"), label: jammed ? "Jammed" : lock === "unlocked" ? "Unlocked" : null },
+      { at: planSpot({ spot: "garage_door" }), icon: garage === "closed" ? "mdi:garage" : "mdi:garage-open",
+        cls: tone(garage == null ? null : garage === "closed"), label: garage && garage !== "closed" ? cap(garage) : null },
+      ...(c.cameras_person ?? []).map((p) => {
+        const now = this.on(p.entity);
+        const m = now ? 0 : p.camera ? this.minutesSincePerson(p.camera) : null;
+        const recent = m != null && m < 30;
+        return { at: planSpot(p), icon: "mdi:cctv", cls: now ? "alert" : recent ? "info" : now == null ? "" : "ok",
+          label: now ? "Person" : recent ? relTime(m) : null, action: p.camera ? `info:${p.camera}` : null };
+      }),
+      ...(c.openings ?? []).map((o) => {
+        const v = this.on(o.entity);
+        return { at: planSpot(o), icon: v ? "mdi:door-open" : "mdi:door-closed", cls: tone(v == null ? null : !v), label: v ? "Open" : null };
+      }),
+    ];
 
     return `
     <div class="stack">
       <div class="card navy">
-        <svg viewBox="0 0 320 250" width="100%" style="--mdc-icon-size:16px">
-          <circle cx="160" cy="125" r="100" fill="none" stroke="#2f4470" stroke-dasharray="2 8"/>
-          <circle cx="160" cy="118" r="58" fill="#132042" stroke="${alarm === "triggered" ? "#e86a6a" : alarm && alarm !== "disarmed" ? "#e86a6a88" : "#30477a"}" stroke-width="${alarm && alarm !== "disarmed" ? 3 : 1}"/>
-          <path d="M160 84 l28 11 v22 c0 21 -13 34 -28 40 c-15 -6 -28 -19 -28 -40 v-22z" fill="#1a2b52" stroke="#9fb3d8" stroke-width="2"/>
-          <text x="160" y="204" text-anchor="middle" fill="#e9edf3" font-size="22" font-weight="600">${alarmLabel}</text>
-          <text x="160" y="224" text-anchor="middle" fill="#9aa4b5" font-size="12">Alarmo</text>
-          ${node(160, 26, col(lock == null ? null : lock === "locked" && !jammed), "mdi:lock", jammed ? "Jammed" : lock === "unlocked" ? "Unlocked" : "Front lock", 62)}
-          ${node(268, 96, col(garage == null ? null : garage === "closed"), "mdi:garage", garage === "closed" ? "Garage" : "Garage open")}
-          ${node(268, 186, personCol, "mdi:cctv", last?.now ? "Person now" : last && last.minutes < 30 ? relTime(last.minutes) : "Cameras")}
-          ${node(52, 96, col(remotes == null ? null : true), "mdi:remote", remotes === "locked" ? "Remotes off" : "Remotes")}
-          ${node(52, 186, c.openings?.length ? col(!openCount) : "#6b7486", "mdi:window-closed-variant", c.openings?.length ? (openCount ? `${openCount} open` : "Shut") : "No sensors")}
-        </svg>
+        <div style="display:flex;align-items:center;gap:10px;--mdc-icon-size:26px" class="${alarm === "triggered" || armed ? "tone-alert" : "tone-info"}">
+          ${icon(armed ? "mdi:shield-lock" : "mdi:shield-off-outline")}
+          <span style="font-size:22px;font-weight:600;color:var(--sb-text)">${alarmLabel}</span>
+          <span class="sub">Alarmo</span>
+        </div>
+        ${floorplan({ markers, cls: armed ? "armed" : "" })}
         <div class="headline" style="font-size:21px">${esc(head.text)}</div>
         ${head.sub ? `<div class="sub">${esc(head.sub)}</div>` : ""}
       </div>
@@ -615,6 +736,7 @@ class StonebridgeSecurity extends SbCard {
 
   handle(action) {
     const c = this.config;
+    if (action.startsWith("info:")) return this.moreInfo(action.slice(5));
     switch (action) {
       case "arm_home": return this.call("alarm_control_panel", "alarm_arm_home", { entity_id: c.alarm });
       case "arm_away": return this.call("alarm_control_panel", "alarm_arm_away", { entity_id: c.alarm });
@@ -1048,9 +1170,12 @@ customElements.define("stonebridge-climate", StonebridgeClimate);
 {
 
 
+
 // type: custom:stonebridge-lights
-// config: floors: [{name, all?, lights: [{entity, name, icon?, fan?}]}],
-//   scenes: [{entity, name, icon}]
+// config: floors: [{name, all?, lights: [{entity, name, icon?, fan?, room?, spot?, at?}]}],
+//   scenes: [{entity, name, icon}], plan: false to hide the floor plan
+// A light with a `room` (see floorplan.js) lights that room on the plan; one with
+// a `spot` or `at: [x, y]` is a marker outside. Tapping either switches it.
 // A floor with `all: false` is left out of the All on / All off buttons.
 // A light's optional `fan` (switch) shows as a small toggle on its tile.
 class StonebridgeLights extends SbCard {
@@ -1078,6 +1203,7 @@ class StonebridgeLights extends SbCard {
         <div class="headline">${esc(head.text)}</div>
         ${since ? `<div class="sub">${esc(since)}</div>` : ""}
       </div>
+      ${this.plan(lights)}
       <div class="grid g4">
         ${(c.scenes ?? []).map((s) => `<button class="round" data-action="scene:${esc(s.entity)}"><span class="btn">${icon(s.icon ?? "mdi:palette")}</span><span>${esc(s.name)}</span></button>`).join("")}
         <button class="round" data-action="all_on"><span class="btn">${icon("mdi:lightbulb-on")}</span><span>All on</span></button>
@@ -1087,6 +1213,29 @@ class StonebridgeLights extends SbCard {
         <div class="section">${esc(f.name)}</div>
         <div class="grid g3">${f.lights.map((l) => this.tile(l)).join("")}</div>`).join("")}
     </div>`;
+  }
+
+  byRoom(lights) {
+    const rooms = {};
+    for (const l of lights) if (l.room) (rooms[l.room] ??= []).push(l);
+    return rooms;
+  }
+
+  plan(lights) {
+    if (this.config.plan === false) return "";
+    const rooms = Object.fromEntries(Object.entries(this.byRoom(lights)).map(([id, ls]) => {
+      const on = ls.filter((l) => l.on);
+      const level = Math.max(0, ...on.map((l) => (this.attr(l.entity, "brightness") ?? 255) / 255));
+      return [id, {
+        cls: on.length ? "lit" : ls.every((l) => l.on == null) ? "dead" : "",
+        label: ls.length === 1 ? ls[0].name : undefined, level, action: `room:${id}`,
+      }];
+    }));
+    const markers = lights.filter((l) => !l.room).map((l) => ({
+      at: planSpot(l), icon: l.icon ?? "mdi:lightbulb", cls: l.on ? "lit" : "", action: `toggle:${l.entity}`,
+    })).filter((m) => m.at);
+    if (!Object.keys(rooms).length && !markers.length) return "";
+    return `<div class="card navy" style="padding:10px">${floorplan({ rooms, markers })}</div>`;
   }
 
   tile(l) {
@@ -1107,6 +1256,11 @@ class StonebridgeLights extends SbCard {
     const [verb, id] = [action.split(":")[0], action.slice(action.indexOf(":") + 1)];
     const ids = (this.config.floors ?? []).filter((f) => f.all !== false).flatMap((f) => f.lights.map((l) => l.entity));
     switch (verb) {
+      case "room": {
+        // One tap for the whole room: off if anything is on, otherwise on.
+        const ls = this.byRoom(this.all())[id] ?? [];
+        return this.call("light", ls.some((l) => l.on) ? "turn_off" : "turn_on", { entity_id: ls.map((l) => l.entity) });
+      }
       case "toggle": return this.call("light", "toggle", { entity_id: id });
       case "fan": return this.call("switch", "toggle", { entity_id: id });
       case "scene": return this.call("scene", "turn_on", { entity_id: id });

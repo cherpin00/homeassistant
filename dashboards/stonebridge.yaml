@@ -68,33 +68,35 @@ views:
         scenes:
           - { entity: scene.movie, name: Movie, icon: mdi:movie-open }
         # Floor assignment is a first guess — move lines between floors freely.
+        # `room:` puts a light on the floor plan (names in www/stonebridge/floorplan.js);
+        # `spot:` or `at: [x, y]` makes it a marker outside.
         floors:
           - name: Downstairs
             lights:
-              - { entity: light.s2_dimmer, name: Living room, icon: mdi:sofa }
-              - { entity: light.kitchen_main_light, name: Kitchen, icon: mdi:countertop }
-              - { entity: light.wet_bar_light, name: Wet bar, icon: mdi:glass-wine }
-              - { entity: light.utility_light, name: Utility, icon: mdi:washing-machine }
-              - { entity: light.half_bath_light, name: Half bath, icon: mdi:toilet }
+              - { room: living, entity: light.s2_dimmer, name: Living room, icon: mdi:sofa }
+              - { room: kitchen, entity: light.kitchen_main_light, name: Kitchen, icon: mdi:countertop }
+              - { room: wet_bar, entity: light.wet_bar_light, name: Wet bar, icon: mdi:glass-wine }
+              - { room: laundry, entity: light.utility_light, name: Utility, icon: mdi:washing-machine }
+              - { room: half_bath, entity: light.half_bath_light, name: Half bath, icon: mdi:toilet }
           - name: Upstairs
             lights:
-              - { entity: light.master_light, name: Master, icon: mdi:bed-king, fan: switch.master_fan }
-              - { entity: light.master_entry_light, name: Master entry, icon: mdi:door }
-              - { entity: light.master_bath_light, name: Master bath, icon: mdi:shower, fan: switch.master_bath_fan }
-              - { entity: light.s2_dimmer_2, name: Office, icon: mdi:desk }
-              - { entity: light.bed_1_light, name: Bed 1, icon: mdi:bed, fan: switch.bed_1_fan }
-              - { entity: light.bed_2_light, name: Bed 2, icon: mdi:bed, fan: switch.bed_2_fan }
-              - { entity: light.bed_3_ligh, name: Bed 3, icon: mdi:bed, fan: switch.bed_3_fan }
-              - { entity: light.guest_bath_light, name: Guest bath, icon: mdi:shower, fan: switch.guest_bath_fan }
-              - { entity: light.hallway, name: Hallway, icon: mdi:wall-sconce-flat }
+              - { room: primary_bed, entity: light.master_light, name: Master, icon: mdi:bed-king, fan: switch.master_fan }
+              - { room: primary_closet, entity: light.master_entry_light, name: Master entry, icon: mdi:door }
+              - { room: primary_bath, entity: light.master_bath_light, name: Master bath, icon: mdi:shower, fan: switch.master_bath_fan }
+              - { room: office, entity: light.s2_dimmer_2, name: Office, icon: mdi:desk }
+              - { room: bed_1, entity: light.bed_1_light, name: Bed 1, icon: mdi:bed, fan: switch.bed_1_fan }
+              - { room: bed_2, entity: light.bed_2_light, name: Bed 2, icon: mdi:bed, fan: switch.bed_2_fan }
+              - { room: bed_3, entity: light.bed_3_ligh, name: Bed 3, icon: mdi:bed, fan: switch.bed_3_fan }
+              - { room: guest_bath, entity: light.guest_bath_light, name: Guest bath, icon: mdi:shower, fan: switch.guest_bath_fan }
+              - { room: hallway, entity: light.hallway, name: Hallway, icon: mdi:wall-sconce-flat }
           - name: Outside
             all: false # All on / All off leave these alone
             lights:
-              - { entity: light.ratgdo32disco_f9898c_light, name: Garage, icon: mdi:garage }
-              - { entity: light.front_left_floodlight, name: Front left, icon: mdi:light-flood-down }
-              - { entity: light.front_right_floodlight, name: Front right, icon: mdi:light-flood-down }
-              - { entity: light.living_room_floodlight, name: Back left, icon: mdi:light-flood-down }
-              - { entity: light.back_right_floodlight, name: Back right, icon: mdi:light-flood-down }
+              - { room: garage, entity: light.ratgdo32disco_f9898c_light, name: Garage, icon: mdi:garage }
+              - { spot: front_left, entity: light.front_left_floodlight, name: Front left, icon: mdi:light-flood-down }
+              - { spot: front_right, entity: light.front_right_floodlight, name: Front right, icon: mdi:light-flood-down }
+              - { spot: back_left, entity: light.living_room_floodlight, name: Back left, icon: mdi:light-flood-down }
+              - { spot: back_right, entity: light.back_right_floodlight, name: Back right, icon: mdi:light-flood-down }
 
   - title: Climate
     path: climate
@@ -165,11 +167,11 @@ views:
         garage_close_script: script.garage_close_safely
         garage_remotes: lock.ratgdo32disco_f9898c_lock_remotes
         cameras_person:
-          - { entity: binary_sensor.doorbell_smart_person, camera: camera.doorbell, name: Doorbell }
-          - { entity: binary_sensor.front_left_smart_person, camera: camera.front_left, name: Front left }
-          - { entity: binary_sensor.front_right_smart_person, camera: camera.front_right, name: Front right }
-          - { entity: binary_sensor.back_left_smart_person, camera: camera.back_left, name: Back left }
-          - { entity: binary_sensor.back_right_smart_person, camera: camera.back_right, name: Back right }
+          - { entity: binary_sensor.doorbell_smart_person, camera: camera.doorbell, name: Doorbell, spot: doorbell }
+          - { entity: binary_sensor.front_left_smart_person, camera: camera.front_left, name: Front left, spot: front_left }
+          - { entity: binary_sensor.front_right_smart_person, camera: camera.front_right, name: Front right, spot: front_right }
+          - { entity: binary_sensor.back_left_smart_person, camera: camera.back_left, name: Back left, spot: back_left }
+          - { entity: binary_sensor.back_right_smart_person, camera: camera.back_right, name: Back right, spot: back_right }
         openings: []
 
   - title: Cameras
