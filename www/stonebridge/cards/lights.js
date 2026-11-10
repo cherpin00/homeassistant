@@ -2,8 +2,9 @@ import { SbCard, esc, icon } from "../base.js";
 import { lightsHeadline } from "../headlines.js";
 
 // type: custom:stonebridge-lights
-// config: floors: [{name, lights: [{entity, name, icon?, fan?}]}],
+// config: floors: [{name, all?, lights: [{entity, name, icon?, fan?}]}],
 //   scenes: [{entity, name, icon}]
+// A floor with `all: false` is left out of the All on / All off buttons.
 // A light's optional `fan` (switch) shows as a small toggle on its tile.
 class StonebridgeLights extends SbCard {
   entities() {
@@ -57,7 +58,7 @@ class StonebridgeLights extends SbCard {
 
   handle(action) {
     const [verb, id] = [action.split(":")[0], action.slice(action.indexOf(":") + 1)];
-    const ids = this.all().map((l) => l.entity);
+    const ids = (this.config.floors ?? []).filter((f) => f.all !== false).flatMap((f) => f.lights.map((l) => l.entity));
     switch (verb) {
       case "toggle": return this.call("light", "toggle", { entity_id: id });
       case "fan": return this.call("switch", "toggle", { entity_id: id });

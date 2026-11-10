@@ -5,8 +5,9 @@ import { theme } from "./theme.js";
 export function report(message, hass) {
   console.error(`stonebridge: ${message}`);
   const h = hass ?? document.querySelector("home-assistant")?.hass;
-  h?.callWS?.({ type: "system_log/write", logger: "stonebridge", level: "error", message: String(message).slice(0, 2000) })
-    .catch(() => {});
+  // system_log.write is a service; HA has no websocket command for it.
+  h?.callService?.("system_log", "write", { logger: "stonebridge", level: "error", message: String(message).slice(0, 2000) })
+    ?.catch(() => {});
 }
 
 // Last person seen per Frigate camera, from Frigate's own event history (via the
@@ -32,6 +33,7 @@ export function personTimes(hass, onUpdate) {
   }
   return personCache.times;
 }
+export function forgetPersonListener(onUpdate) { personCache.listeners.delete(onUpdate); }
 
 const BAD = new Set(["unavailable", "unknown", "", undefined, null]);
 
@@ -70,7 +72,7 @@ export class SbCard extends HTMLElement {
     // Relative times ("4 min ago") go stale without a state change.
     this._tick = setInterval(() => this._render(), 60_000);
   }
-  disconnectedCallback() { clearInterval(this._tick); }
+  disconnectedCallback() { clearInterval(this._tick); forgetPersonListener(this._personListener); }
 
   getCardSize() { return 6; }
   getGridOptions() { return { columns: 12 }; }

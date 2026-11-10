@@ -1,4 +1,4 @@
-import { SbCard, esc } from "../base.js";
+import { SbCard, esc, report } from "../base.js";
 import { theme } from "../theme.js";
 import { camerasHeadline, relTime } from "../headlines.js";
 
@@ -36,8 +36,16 @@ class StonebridgeCameras extends SbCard {
     }));
   }
 
+  // Overrides the base renderer, so it needs its own error reporting.
   _render() {
     if (!this.hass || !this.config) return;
+    try { this._paint(); }
+    catch (e) {
+      if (!this._reported) { this._reported = true; report(`${this.localName} render failed: ${e.stack ?? e}`, this.hass); }
+    }
+  }
+
+  _paint() {
     const root = this.shadowRoot;
     if (!this._built) {
       root.innerHTML = `<style>${theme}${this.styles()}</style>
@@ -87,6 +95,7 @@ class StonebridgeCameras extends SbCard {
   }
 
   _refreshSnapshots(group = "grid") {
+    if (document.hidden) return; // nobody is looking — don't keep pulling frames through HA
     this.shadowRoot.querySelectorAll(`img[data-group="${group}"]`).forEach((img) => {
       if (!img.complete) return; // previous frame still loading — don't pile up requests
       const src = this._src(img.dataset.cam);

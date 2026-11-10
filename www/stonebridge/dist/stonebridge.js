@@ -267,8 +267,9 @@ function lightsHeadline(lights) {
 function report(message, hass) {
   console.error(`stonebridge: ${message}`);
   const h = hass ?? document.querySelector("home-assistant")?.hass;
-  h?.callWS?.({ type: "system_log/write", logger: "stonebridge", level: "error", message: String(message).slice(0, 2000) })
-    .catch(() => {});
+  // system_log.write is a service; HA has no websocket command for it.
+  h?.callService?.("system_log", "write", { logger: "stonebridge", level: "error", message: String(message).slice(0, 2000) })
+    ?.catch(() => {});
 }
 
 // Last person seen per Frigate camera, from Frigate's own event history (via the
@@ -294,6 +295,7 @@ function personTimes(hass, onUpdate) {
   }
   return personCache.times;
 }
+function forgetPersonListener(onUpdate) { personCache.listeners.delete(onUpdate); }
 
 const BAD = new Set(["unavailable", "unknown", "", undefined, null]);
 
@@ -332,7 +334,7 @@ class SbCard extends HTMLElement {
     // Relative times ("4 min ago") go stale without a state change.
     this._tick = setInterval(() => this._render(), 60_000);
   }
-  disconnectedCallback() { clearInterval(this._tick); }
+  disconnectedCallback() { clearInterval(this._tick); forgetPersonListener(this._personListener); }
 
   getCardSize() { return 6; }
   getGridOptions() { return { columns: 12 }; }
@@ -671,8 +673,16 @@ class StonebridgeCameras extends SbCard {
     }));
   }
 
+  // Overrides the base renderer, so it needs its own error reporting.
   _render() {
     if (!this.hass || !this.config) return;
+    try { this._paint(); }
+    catch (e) {
+      if (!this._reported) { this._reported = true; report(`${this.localName} render failed: ${e.stack ?? e}`, this.hass); }
+    }
+  }
+
+  _paint() {
     const root = this.shadowRoot;
     if (!this._built) {
       root.innerHTML = `<style>${theme}${this.styles()}</style>
@@ -722,6 +732,7 @@ class StonebridgeCameras extends SbCard {
   }
 
   _refreshSnapshots(group = "grid") {
+    if (document.hidden) return; // nobody is looking — don't keep pulling frames through HA
     this.shadowRoot.querySelectorAll(`img[data-group="${group}"]`).forEach((img) => {
       if (!img.complete) return; // previous frame still loading — don't pile up requests
       const src = this._src(img.dataset.cam);
@@ -1038,8 +1049,9 @@ customElements.define("stonebridge-climate", StonebridgeClimate);
 
 
 // type: custom:stonebridge-lights
-// config: floors: [{name, lights: [{entity, name, icon?, fan?}]}],
+// config: floors: [{name, all?, lights: [{entity, name, icon?, fan?}]}],
 //   scenes: [{entity, name, icon}]
+// A floor with `all: false` is left out of the All on / All off buttons.
 // A light's optional `fan` (switch) shows as a small toggle on its tile.
 class StonebridgeLights extends SbCard {
   entities() {
@@ -1093,7 +1105,7 @@ class StonebridgeLights extends SbCard {
 
   handle(action) {
     const [verb, id] = [action.split(":")[0], action.slice(action.indexOf(":") + 1)];
-    const ids = this.all().map((l) => l.entity);
+    const ids = (this.config.floors ?? []).filter((f) => f.all !== false).flatMap((f) => f.lights.map((l) => l.entity));
     switch (verb) {
       case "toggle": return this.call("light", "toggle", { entity_id: id });
       case "fan": return this.call("switch", "toggle", { entity_id: id });

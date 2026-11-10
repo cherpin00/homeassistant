@@ -88,6 +88,7 @@ views:
               - { entity: light.guest_bath_light, name: Guest bath, icon: mdi:shower, fan: switch.guest_bath_fan }
               - { entity: light.hallway, name: Hallway, icon: mdi:wall-sconce-flat }
           - name: Outside
+            all: false # All on / All off leave these alone
             lights:
               - { entity: light.ratgdo32disco_f9898c_light, name: Garage, icon: mdi:garage }
               - { entity: light.front_left_floodlight, name: Front left, icon: mdi:light-flood-down }
