@@ -73,7 +73,16 @@ export const theme = `
 .plan .tap { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .plan text { fill: var(--sb-muted); text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
 .plan text.lit { fill: #2a2216; font-weight: 500; }
+.plan text.lit.dim { fill: var(--sb-text); }
 .plan text.dead { fill: var(--sb-dim); }
+.plan text.note { fill: var(--sb-dim); font-weight: 500; }
+.plan .room.has { fill: #183a37; }
+.plan text.has { fill: var(--sb-text); } .plan text.note.has { fill: var(--sb-ok); }
+.plan .badge { color: var(--sb-dim); }
+.plan .badge .hit { fill: transparent; }
+.plan .badge .disc { fill: #131a26; stroke: currentColor; stroke-width: 2.5; }
+.plan .badge .glyph { color: inherit; --mdc-icon-size: 26px; display: grid; place-items: center; height: 32px; pointer-events: none; }
+.plan .badge.on { color: var(--sb-ok); } .plan .badge.on .disc { fill: var(--sb-ok-d); } .plan .badge.on .glyph { color: #fff; }
 .plan .mark { color: var(--sb-dim); }
 .plan .mark .hit { fill: transparent; }
 .plan .mark .disc { fill: #131a26; stroke: currentColor; stroke-width: 3; }

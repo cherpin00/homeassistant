@@ -67,32 +67,33 @@ views:
       - type: custom:stonebridge-lights
         scenes:
           - { entity: scene.movie, name: Movie, icon: mdi:movie-open }
-        # Floor assignment is a first guess — move lines between floors freely.
-        # `room:` puts a light on the floor plan (names in www/stonebridge/floorplan.js);
+        # Groups for the tiles and for All on / All off. Move lines freely.
+        # A light sits on the floor plan in the room of its Home Assistant area.
+        # `room:` (names in www/stonebridge/floorplan.js) overrides that;
         # `spot:` or `at: [x, y]` makes it a marker outside.
         floors:
-          - name: Downstairs
+          - name: Living areas
             lights:
-              - { room: living, entity: light.s2_dimmer, name: Living room, icon: mdi:sofa }
-              - { room: kitchen, entity: light.kitchen_main_light, name: Kitchen, icon: mdi:countertop }
-              - { room: wet_bar, entity: light.wet_bar_light, name: Wet bar, icon: mdi:glass-wine }
-              - { room: laundry, entity: light.utility_light, name: Utility, icon: mdi:washing-machine }
-              - { room: half_bath, entity: light.half_bath_light, name: Half bath, icon: mdi:toilet }
-          - name: Upstairs
+              - { entity: light.s2_dimmer, name: Living room, icon: mdi:sofa }
+              - { entity: light.kitchen_main_light, name: Kitchen, icon: mdi:countertop }
+              - { entity: light.wet_bar_light, name: Wet bar, icon: mdi:glass-wine }
+              - { entity: light.s2_dimmer_2, name: Office, icon: mdi:desk }
+              - { entity: light.utility_light, name: Utility, icon: mdi:washing-machine }
+              - { entity: light.half_bath_light, name: Half bath, icon: mdi:toilet }
+              - { entity: light.hallway, name: Hallway, icon: mdi:wall-sconce-flat }
+          - name: Bedrooms
             lights:
-              - { room: primary_bed, entity: light.master_light, name: Master, icon: mdi:bed-king, fan: switch.master_fan }
+              - { entity: light.master_light, name: Master, icon: mdi:bed-king, fan: switch.master_fan }
               - { room: primary_closet, entity: light.master_entry_light, name: Master entry, icon: mdi:door }
-              - { room: primary_bath, entity: light.master_bath_light, name: Master bath, icon: mdi:shower, fan: switch.master_bath_fan }
-              - { room: office, entity: light.s2_dimmer_2, name: Office, icon: mdi:desk }
-              - { room: bed_1, entity: light.bed_1_light, name: Bed 1, icon: mdi:bed, fan: switch.bed_1_fan }
-              - { room: bed_2, entity: light.bed_2_light, name: Bed 2, icon: mdi:bed, fan: switch.bed_2_fan }
-              - { room: bed_3, entity: light.bed_3_ligh, name: Bed 3, icon: mdi:bed, fan: switch.bed_3_fan }
-              - { room: guest_bath, entity: light.guest_bath_light, name: Guest bath, icon: mdi:shower, fan: switch.guest_bath_fan }
-              - { room: hallway, entity: light.hallway, name: Hallway, icon: mdi:wall-sconce-flat }
+              - { entity: light.master_bath_light, name: Master bath, icon: mdi:shower, fan: switch.master_bath_fan }
+              - { entity: light.bed_1_light, name: Bed 1, icon: mdi:bed, fan: switch.bed_1_fan }
+              - { entity: light.bed_2_light, name: Bed 2, icon: mdi:bed, fan: switch.bed_2_fan }
+              - { entity: light.bed_3_ligh, name: Bed 3, icon: mdi:bed, fan: switch.bed_3_fan }
+              - { entity: light.guest_bath_light, name: Guest bath, icon: mdi:shower, fan: switch.guest_bath_fan }
           - name: Outside
             all: false # All on / All off leave these alone
             lights:
-              - { room: garage, entity: light.ratgdo32disco_f9898c_light, name: Garage, icon: mdi:garage }
+              - { entity: light.ratgdo32disco_f9898c_light, name: Garage, icon: mdi:garage }
               - { spot: front_left, entity: light.front_left_floodlight, name: Front left, icon: mdi:light-flood-down }
               - { spot: front_right, entity: light.front_right_floodlight, name: Front right, icon: mdi:light-flood-down }
               - { spot: back_left, entity: light.living_room_floodlight, name: Back left, icon: mdi:light-flood-down }
@@ -110,8 +111,8 @@ views:
         # New temperature sensors: add a line here. `humidity` and `source` are optional.
         rooms:
           - { name: Thermostat, temperature: climate.ecobee_9505_stonebridge, humidity: climate.ecobee_9505_stonebridge, source: ecobee }
-          - { name: I-9PSL sensor, temperature: sensor.i_9psl_temperature, humidity: sensor.i_9psl_humidity, source: room unknown }
-          - { name: Echo Dot, temperature: sensor.caleb_s_3rd_echo_dot_temperature, source: room unknown }
+          - { name: I-9PSL sensor, temperature: sensor.i_9psl_temperature, humidity: sensor.i_9psl_humidity }
+          - { name: Echo Dot, temperature: sensor.caleb_s_3rd_echo_dot_temperature }
         bill:
           to_date: sensor.stonebridge_austing_energy_current_bill_electric_cost_to_date
           forecast: sensor.stonebridge_austing_energy_current_bill_electric_forecasted_cost
@@ -186,6 +187,17 @@ views:
           - { camera: camera.front_right, person: binary_sensor.front_right_smart_person, name: Front right }
           - { camera: camera.back_left, person: binary_sensor.back_left_smart_person, name: Back left }
           - { camera: camera.back_right, person: binary_sensor.back_right_smart_person, name: Back right }
+  - title: House
+    path: house
+    icon: mdi:floor-plan
+    type: panel
+    cards:
+      # Which devices Home Assistant has in which room. Devices are placed by
+      # giving them an area in HA; nothing is listed here.
+      - type: custom:stonebridge-house
+        # Integrations whose devices are not things in a room.
+        ignore: [alexa_devices, alexa_media, hassio, mobile_app, hacs, frigate, tesla_fleet, tesla_custom]
+
   - title: Alarm Guide
     path: alarm-guide
     icon: mdi:shield-key

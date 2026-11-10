@@ -4,6 +4,7 @@ import { thermostatHeadline, roomsHeadline, billHeadline } from "../headlines.js
 // type: custom:stonebridge-climate
 // config: thermostat, outside_temp,
 //   rooms: [{name, temperature, humidity?, source?}]   <- add new sensors here
+//          (source defaults to the sensor's Home Assistant area)
 //   bill: {to_date, forecast, typical?}                 (optional)
 class StonebridgeClimate extends SbCard {
   entities() {
@@ -28,7 +29,9 @@ class StonebridgeClimate extends SbCard {
       // A room may point at the thermostat itself (climate entity) or at a sensor.
       const temp = r.temperature?.startsWith("climate.") ? this.attr(r.temperature, "current_temperature") : this.num(r.temperature);
       const humidity = r.humidity?.startsWith("climate.") ? this.attr(r.humidity, "current_humidity") : this.num(r.humidity);
-      return { ...r, temp, humidity };
+      // Where the sensor is, from its Home Assistant area, unless the config says.
+      const area = this.areaOf(r.temperature);
+      return { ...r, temp, humidity, source: r.source ?? this._hass.areas?.[area]?.name ?? "no room set" };
     });
     const rh = roomsHeadline(rooms);
     const out = this.num(c.outside_temp);

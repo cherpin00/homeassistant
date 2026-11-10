@@ -77,7 +77,7 @@ export function whoIsHome(people) {
 
 export function securityHeadline({ alarm, lock, jammed, garage, lastPerson, openings = [] }) {
   const sub = alarm === "disarmed"
-    ? "Arm it when you leave, or Alarmo arms itself at night."
+    ? "Arm it when you leave."
     : alarmWord(alarm) ? `Alarm is ${alarmWord(alarm)}.` : null;
 
   if (alarm === "triggered") return { tone: "alert", text: "The alarm is going off.", sub };
@@ -179,12 +179,26 @@ export function billHeadline({ toDate, forecast }) {
 
 // --- Lights ---------------------------------------------------------------
 
-// lights: [{ name, floor, on }]  (on: true/false/null for unavailable)
+// lights: [{ name, floor, on }]  (on: true/false/null for unavailable; floor is
+// the group the light is listed under, e.g. "Bedrooms")
 export function lightsHeadline(lights) {
   const on = lights.filter((l) => l.on === true);
   if (!on.length) return { tone: "ok", text: "All lights are off." };
   if (on.length === 1) return { tone: "info", text: `1 light on: ${on[0].name}.` };
   const floors = [...new Set(on.map((l) => l.floor).filter(Boolean))];
-  const where = floors.length === 1 ? `, all ${floors[0].toLowerCase()}` : floors.length > 1 ? ", upstairs and down" : "";
-  return { tone: "info", text: `${on.length} lights on${where}.` };
+  const where = floors.length === 1 ? `, all ${floors[0].toLowerCase()}` : "";
+  // Naming them only helps while the list is short.
+  return { tone: "info", text: `${on.length} lights on${where}.`, sub: on.length <= 4 ? `${on.map((l) => l.name).join(", ")}.` : null };
+}
+
+// --- House ----------------------------------------------------------------
+
+// total: devices that should have a room; unplaced: how many have none;
+// dead: how many are not responding.
+export function houseHeadline({ total, unplaced, dead }) {
+  const sub = [`${total - unplaced} of ${total} devices placed.`, dead ? `${dead} not responding.` : null].filter(Boolean).join(" ");
+  if (!total) return { tone: "info", text: "No devices found.", sub: null };
+  if (unplaced) return { tone: "warn", text: `${unplaced} device${unplaced === 1 ? " has" : "s have"} no room yet.`, sub };
+  if (dead) return { tone: "warn", text: `${dead} device${dead === 1 ? " is" : "s are"} not responding.`, sub };
+  return { tone: "ok", text: "Every device has a room.", sub };
 }

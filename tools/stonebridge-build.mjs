@@ -17,7 +17,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..", "www", "stonebr
 // Shared modules first (top level), then each card in its own block scope so
 // file-local helpers (e.g. `cap`) cannot collide.
 const SHARED = ["theme.js", "headlines.js", "base.js", "floorplan.js"];
-const CARDS = ["cards/home.js", "cards/security.js", "cards/cameras.js", "cards/car.js", "cards/climate.js", "cards/lights.js"];
+const CARDS = ["cards/home.js", "cards/security.js", "cards/cameras.js", "cards/car.js", "cards/climate.js", "cards/lights.js", "cards/house.js"];
 
 function strip(src) {
   return src
