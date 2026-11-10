@@ -360,7 +360,10 @@
       seconds: 0
       id: hourly
     - trigger: state
-      entity_id: alarm_control_panel.alarmo
+      entity_id: alarm_control_panel.uno864_partition_1
+      not_from:
+        - unavailable
+        - unknown
       to: armed_away
       id: armed_away
   conditions:

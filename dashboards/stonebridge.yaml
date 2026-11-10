@@ -10,7 +10,7 @@ views:
     type: panel
     cards:
       - type: custom:stonebridge-home
-        alarm: alarm_control_panel.alarmo
+        alarm: alarm_control_panel.uno864_partition_1
         lock: lock.assure_2_biometric_deadbolt
         lock_jammed: binary_sensor.assure_2_biometric_deadbolt_lock_jammed
         garage: cover.ratgdo32disco_f9898c_door
@@ -159,7 +159,7 @@ views:
     type: panel
     cards:
       - type: custom:stonebridge-security
-        alarm: alarm_control_panel.alarmo
+        alarm: alarm_control_panel.uno864_partition_1
         lock: lock.assure_2_biometric_deadbolt
         lock_jammed: binary_sensor.assure_2_biometric_deadbolt_lock_jammed
         lock_battery: sensor.assure_2_biometric_deadbolt_battery_level

@@ -47,12 +47,12 @@
     - condition: state
       entity_id: input_boolean.auto_relock_enabled
       state: "on"
-    # Alarmo's supported_features is 11 (home + away + night), so only the
-    # first three can occur today. The other two are listed anyway so that
-    # enabling a mode in Alarmo cannot silently drop it out of coverage — a
-    # state that never occurs costs nothing here.
+    # The panel's supported_features is 11 (home + away + night), so only the
+    # first three can occur today. The other two are listed anyway so that a
+    # mode added later cannot silently drop out of coverage — a state that
+    # never occurs costs nothing here.
     - condition: state
-      entity_id: alarm_control_panel.alarmo
+      entity_id: alarm_control_panel.uno864_partition_1
       state:
         - armed_home
         - armed_away
@@ -126,7 +126,7 @@
         - condition: not
           conditions:
             - condition: state
-              entity_id: alarm_control_panel.alarmo
+              entity_id: alarm_control_panel.uno864_partition_1
               state:
                 - armed_home
                 - armed_away

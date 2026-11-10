@@ -15,7 +15,7 @@
       to: 'on'
   condition:
     - condition: state
-      entity_id: alarm_control_panel.alarmo
+      entity_id: alarm_control_panel.uno864_partition_1
       state:
         - armed_away
         - armed_home
@@ -108,7 +108,7 @@
     # only (otherwise every passerby pings you while you're home).
     - if:
         - condition: state
-          entity_id: alarm_control_panel.alarmo
+          entity_id: alarm_control_panel.uno864_partition_1
           state: armed_away
       then:
         # warn + force_email rather than critical: the Alexa announce is
@@ -302,15 +302,15 @@
         minutes: "{{ states('input_number.security_alert_cooldown_minutes') | int(5) }}"
 
 - id: 'security_alarmo_triggered'
-  alias: Security - Alarmo Triggered
+  alias: Security - Panel Triggered
   description: >-
-    Activates sirens when Alarmo itself trips (e.g. door/window sensor breach).
+    Activates sirens when the alarm panel itself trips (e.g. door/window sensor breach).
     Kept separate from the camera coordinator so hardware-sensor alarms fire
     instantly without waiting for the camera pipeline.
   mode: single
   trigger:
     - platform: state
-      entity_id: alarm_control_panel.alarmo
+      entity_id: alarm_control_panel.uno864_partition_1
       to: triggered
   action:
     - action: input_boolean.turn_on
@@ -319,11 +319,11 @@
 
 - id: '1780204799287'
   alias: Security - Disarm Stops Sirens
-  description: Instantly turns OFF the Master Siren Toggle when Alarmo is disarmed.
+  description: Instantly turns OFF the Master Siren Toggle when the alarm panel is disarmed.
   mode: single
   trigger:
     - platform: state
-      entity_id: alarm_control_panel.alarmo
+      entity_id: alarm_control_panel.uno864_partition_1
       to: disarmed
   action:
     - action: input_boolean.turn_off
@@ -384,28 +384,56 @@
 
 - id: '1780204799409'
   alias: Auto Disarm When Phone Arrives
-  description: Disarms the alarm automatically when the Pixel 8 Pro arrives home.
+  description: >-
+    Disarms the alarm when Caleb's phone arrives home, using the code stored in
+    the EyezOn integration. Also covers arriving during the entry delay, when
+    the door opens before the phone reports home.
   mode: single
   trigger:
     - platform: state
       entity_id: person.cherpin
+      not_from:
+        - unavailable
+        - unknown
       to: home
   condition:
     - condition: state
-      entity_id: alarm_control_panel.alarmo
-      state: armed_away
+      entity_id: alarm_control_panel.uno864_partition_1
+      state:
+        - armed_away
+        - pending
   action:
     - action: alarm_control_panel.alarm_disarm
       target:
-        entity_id: alarm_control_panel.alarmo
-    - action: script.notify
-      data:
-        audience: house_admins
-        severity: info
-        category: security
-        tag_suffix: arm_state
-        title: Alarm Disarmed
-        message: Welcome home. The alarm has been automatically disarmed.
+        entity_id: alarm_control_panel.uno864_partition_1
+    - wait_for_trigger:
+        - trigger: state
+          entity_id: alarm_control_panel.uno864_partition_1
+          to: disarmed
+      timeout: "00:00:30"
+      continue_on_timeout: true
+    - if:
+        - condition: state
+          entity_id: alarm_control_panel.uno864_partition_1
+          state: disarmed
+      then:
+        - action: script.notify
+          data:
+            audience: house_admins
+            severity: info
+            category: security
+            tag_suffix: arm_state
+            title: Alarm Disarmed
+            message: Welcome home. The alarm has been automatically disarmed.
+      else:
+        - action: script.notify
+          data:
+            audience: house_admins
+            severity: warn
+            category: security
+            tag_suffix: arm_state
+            title: Alarm Did Not Disarm
+            message: Auto-disarm failed. Use the keypad during the entry delay.
 
 - id: '1780204799500'
   alias: Auto Arm Home at Night
@@ -414,8 +442,13 @@
   trigger:
     - platform: time
       at: "22:00:00"
+    # not_from: an integration reload or HA restart passes through unavailable
+    # and must not count as somebody disarming.
     - platform: state
-      entity_id: alarm_control_panel.alarmo
+      entity_id: alarm_control_panel.uno864_partition_1
+      not_from:
+        - unavailable
+        - unknown
       to: disarmed
       for:
         minutes: 15
@@ -426,15 +459,44 @@
     - condition: state
       entity_id: person.cherpin
       state: home
+    - condition: state
+      entity_id: alarm_control_panel.uno864_partition_1
+      state: disarmed
   action:
-    - action: alarm_control_panel.alarm_arm_home
-      target:
-        entity_id: alarm_control_panel.alarmo
-    - action: script.notify
-      data:
-        audience: house_admins
-        severity: info
-        category: security
-        tag_suffix: arm_state
-        title: House Armed for the Night
-        message: The perimeter has been automatically secured (Armed Home).
+    - alias: Arm only if the panel is ready, and wait out the exit delay
+      if:
+        - condition: state
+          entity_id: binary_sensor.uno864_partition_1_ready
+          state: 'on'
+      then:
+        - action: alarm_control_panel.alarm_arm_home
+          target:
+            entity_id: alarm_control_panel.uno864_partition_1
+        - wait_for_trigger:
+            - trigger: state
+              entity_id: alarm_control_panel.uno864_partition_1
+              to: armed_home
+          timeout: "00:05:00"
+          continue_on_timeout: true
+    - if:
+        - condition: state
+          entity_id: alarm_control_panel.uno864_partition_1
+          state: armed_home
+      then:
+        - action: script.notify
+          data:
+            audience: house_admins
+            severity: info
+            category: security
+            tag_suffix: arm_state
+            title: House Armed for the Night
+            message: The perimeter has been automatically secured (Armed Home).
+      else:
+        - action: script.notify
+          data:
+            audience: house_admins
+            severity: warn
+            category: security
+            tag_suffix: arm_state
+            title: Alarm Did Not Arm
+            message: The night arm did not complete. Check the front door.
