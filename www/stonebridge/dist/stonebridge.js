@@ -291,6 +291,34 @@ function report(message, hass) {
     ?.catch(() => {});
 }
 
+// Diagnostics for devices whose console we cannot read (the Android app).
+// Each device announces the bundle once per version, and any uncaught error
+// that comes from this bundle is forwarded to the HA log.
+if (typeof window !== "undefined") {
+  const where = `${import.meta.url.split("/").pop()} on ${navigator.userAgent}`;
+  const note = (level, message) => {
+    let tries = 0;
+    const send = () => {
+      const h = document.querySelector("home-assistant")?.hass;
+      if (h?.callService) return h.callService("system_log", "write", { logger: "stonebridge", level, message: String(message).slice(0, 2000) }).catch(() => {});
+      if (tries++ < 60) setTimeout(send, 1000);
+    };
+    send();
+  };
+  try {
+    if (localStorage.getItem("stonebridge-announced") !== where) {
+      localStorage.setItem("stonebridge-announced", where);
+      note("warning", `loaded ${where}`);
+    }
+  } catch { note("warning", `loaded ${where} (no localStorage)`); }
+  window.addEventListener("error", (ev) => {
+    if (`${ev.filename} ${ev.error?.stack}`.includes("stonebridge")) note("error", `uncaught: ${ev.error?.stack ?? ev.message} — ${where}`);
+  });
+  window.addEventListener("unhandledrejection", (ev) => {
+    if (String(ev.reason?.stack).includes("stonebridge")) note("error", `unhandled rejection: ${ev.reason.stack} — ${where}`);
+  });
+}
+
 // Last person seen per Frigate camera, from Frigate's own event history (via the
 // Frigate integration's websocket API). Entity last_changed is NOT usable for
 // this: HA resets it on every restart, which made every camera read "18 min ago".
@@ -331,21 +359,35 @@ class SbCard extends HTMLElement {
     this.shadowRoot.addEventListener("click", (ev) => this._onClick(ev));
   }
 
+  // HA turns anything thrown from setConfig or the hass setter into a bare
+  // "Configuration error" card, so say what it was before rethrowing.
+  _guard(what, fn) {
+    try { return fn(); }
+    catch (e) {
+      if (!this._reported) { this._reported = true; report(`${this.localName} ${what} failed: ${e?.stack ?? e} — ${navigator.userAgent}`, this._hass); }
+      throw e;
+    }
+  }
+
   setConfig(config) {
-    if (!config) { report(`${this.localName}: missing config`, this._hass); throw new Error("Missing config"); }
-    this.config = config;
-    this._last = null;
-    if (this._hass) this._render();
+    this._guard("setConfig", () => {
+      if (!config) throw new Error("Missing config");
+      this.config = config;
+      this._last = null;
+      if (this._hass) this._render();
+    });
   }
 
   set hass(hass) {
-    this._hass = hass;
-    if (!this.config) return; // HA may hand us hass before setConfig
-    const ids = this.entities().filter(Boolean);
-    const snap = ids.map((id) => hass.states[id]);
-    if (this._last && snap.every((s, i) => s === this._last[i])) return;
-    this._last = snap;
-    this._render();
+    this._guard("hass update", () => {
+      this._hass = hass;
+      if (!this.config) return; // HA may hand us hass before setConfig
+      const ids = this.entities().filter(Boolean);
+      const snap = ids.map((id) => hass.states[id]);
+      if (this._last && snap.every((s, i) => s === this._last[i])) return;
+      this._last = snap;
+      this._render();
+    });
   }
   get hass() { return this._hass; }
 
