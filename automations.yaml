@@ -1,16 +1,21 @@
 - id: '1776816463721'
   alias: Secure House When Phone Leaves
   description: On departure, locks the deadbolt first and waits for it to confirm,
-    then arms away. The 1-minute debounce filters GPS drift at the zone boundary.
-    Locking is unconditional so it still happens if the alarm is already armed; a
-    jammed lock warns but never blocks arming.
+    then arms away once Caleb and Becca are both away. The 1-minute debounce
+    filters GPS drift at the zone boundary. Locking still happens when Becca is
+    home or the alarm is already armed; a jammed lock warns but never blocks arming.
   triggers:
   - trigger: state
-    entity_id: person.cherpin
+    entity_id:
+    - person.cherpin
+    - person.becca
     to: not_home
     for:
       minutes: 1
-  conditions: []
+  conditions:
+  - condition: state
+    entity_id: person.cherpin
+    state: not_home
   actions:
   - alias: Lock the deadbolt and confirm before arming
     if:
@@ -52,28 +57,77 @@
           tag_suffix: lock
           title: Front Door Locked
           message: The front door has been automatically locked.
-  - alias: Arm away unless the alarm is already away or going off
+  - alias: Arm away once everyone has left, unless already away or going off
     if:
+    - condition: state
+      entity_id:
+      - person.cherpin
+      - person.becca
+      state: not_home
     - condition: not
       conditions:
       - condition: state
-        entity_id: alarm_control_panel.alarmo
+        entity_id: alarm_control_panel.uno864_partition_1
         state:
         - armed_away
         - arming
+        - pending
         - triggered
     then:
-    - action: alarm_control_panel.alarm_arm_away
-      target:
-        entity_id: alarm_control_panel.alarmo
-    - action: script.notify
-      data:
-        audience: house_admins
-        severity: info
-        category: security
-        tag_suffix: arm_state
-        title: House Secured
-        message: The alarm has been automatically set to Armed Away.
+    - alias: Go through disarmed so a Stay arm can become Away
+      if:
+      - condition: state
+        entity_id: alarm_control_panel.uno864_partition_1
+        state:
+        - armed_home
+        - armed_night
+      then:
+      - action: alarm_control_panel.alarm_disarm
+        target:
+          entity_id: alarm_control_panel.uno864_partition_1
+      - wait_for_trigger:
+        - trigger: state
+          entity_id: alarm_control_panel.uno864_partition_1
+          to: disarmed
+        timeout: 00:00:30
+        continue_on_timeout: true
+    - alias: Arm only if the panel is ready, and wait out the exit delay
+      if:
+      - condition: state
+        entity_id: binary_sensor.uno864_partition_1_ready
+        state: 'on'
+      then:
+      - action: alarm_control_panel.alarm_arm_away
+        target:
+          entity_id: alarm_control_panel.uno864_partition_1
+      - wait_for_trigger:
+        - trigger: state
+          entity_id: alarm_control_panel.uno864_partition_1
+          to: armed_away
+        timeout: 00:05:00
+        continue_on_timeout: true
+    - if:
+      - condition: state
+        entity_id: alarm_control_panel.uno864_partition_1
+        state: armed_away
+      then:
+      - action: script.notify
+        data:
+          audience: house_admins
+          severity: info
+          category: security
+          tag_suffix: arm_state
+          title: House Secured
+          message: The alarm has been automatically set to Armed Away.
+      else:
+      - action: script.notify
+        data:
+          audience: house_admins
+          severity: warn
+          category: security
+          tag_suffix: arm_state
+          title: Alarm Did Not Arm
+          message: Everyone has left but the alarm did not arm. Check the front door.
   mode: single
 - id: '1778390547200'
   alias: Auto Lock Front Door When Armed
@@ -82,7 +136,10 @@
     the 22:00 armed_home automation and manual arming.
   triggers:
   - trigger: state
-    entity_id: alarm_control_panel.alarmo
+    entity_id: alarm_control_panel.uno864_partition_1
+    not_from:
+    - unavailable
+    - unknown
     to:
     - armed_away
     - armed_home

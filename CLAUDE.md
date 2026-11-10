@@ -13,7 +13,7 @@ Home Assistant configuration repository for a single instance running at `ha.sto
 - `scripts.yaml` — Named scripts (key-based format, not list-based).
 - `scenes.yaml` — Scene definitions (currently empty).
 - `blueprints/` — Reusable automation/script templates (standard HA blueprints).
-- `custom_components/` — HACS-managed integrations: **alarmo** (alarm panel), **hacs** (community store), **llmvision** (LLM-based camera image analysis).
+- `custom_components/` — HACS-managed integrations: **envisalink_new** (EyezOn UNO alarm panel, the source of truth for arm state), **alarmo** (unused, pending removal), **hacs** (community store), **llmvision** (LLM-based camera image analysis).
 - `secrets.yaml` — Gitignored. Referenced via `!secret` in YAML files.
 
 ## Key Conventions
@@ -64,7 +64,7 @@ The security logic is structured into distinct escalation tiers inside `automati
 ## Lock-up (front deadbolt)
 
 `automations/lockup.yaml`. When `lock.assure_2_biometric_deadbolt` is unlocked
-while Alarmo is in **any** armed mode, push a warning with a **Keep Unlocked**
+while the alarm panel is in **any** armed mode, push a warning with a **Keep Unlocked**
 button, wait out `input_number.auto_relock_delay_minutes` (default 3), then
 lock and confirm. Kill switch: `input_boolean.auto_relock_enabled`.
 
@@ -201,7 +201,7 @@ Per-camera deep-linking was not confirmed for Frigate 0.17 — only `/live` (the
 all-cameras dashboard) is verified. If a per-camera route exists, swapping the
 three `uri:` values is a one-line change each.
 
-**Notifications only fire while armed**, by design — every tier gates on Alarmo.
+**Notifications only fire while armed**, by design — every tier gates on the alarm panel.
 Disarmed means no camera notifications at all. That is intentional (decided
 2026-09-12): security alerts when the system is disarmed are noise.
 
