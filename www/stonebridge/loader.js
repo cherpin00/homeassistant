@@ -1,15 +1,21 @@
-// Loaded by HA via `frontend: extra_module_url`. HA serves /local/ with a
-// 31-day browser cache, so a device keeps whatever copy of this file it first
-// saw. If this file ever has to change, bump the ?v= on its URL in
-// configuration.yaml (and restart HA) so every device fetches it again.
+// Loaded by HA as a dashboard resource (Settings > Dashboards > Resources).
+// Devices cache this file hard: HA serves /local/ with a 31-day browser cache
+// and its service worker answers from its own cache first. If this file ever
+// changes, bump the ?v= on the resource URL so every device fetches it again.
 //
-// It asks for the current bundle version with caching off, then imports the
-// bundle under that version.
+// It asks for the current bundle version, then imports the bundle under that
+// version, so card updates reach every device on its next page load.
 (async () => {
+  // An older copy of this loader may also be running; only one may load a bundle.
+  if (window.__stonebridgeLoader) return;
+  window.__stonebridgeLoader = true;
+
   const base = new URL(".", import.meta.url);
   let v = "dev";
   try {
-    const r = await fetch(new URL("dist/version.json", base), { cache: "no-store" });
+    // A URL nobody has seen before is the only thing that gets past the service
+    // worker, which otherwise hands back the previous version.json.
+    const r = await fetch(new URL(`dist/version.json?t=${Date.now()}`, base), { cache: "no-store" });
     v = (await r.json()).version;
   } catch (e) {
     console.warn("stonebridge: version lookup failed, loading unversioned", e);

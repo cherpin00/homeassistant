@@ -303,3 +303,27 @@ file_io.write_text("/config/pyscript/myapp.json", text)   # atomic write via .tm
 - `apps/tesla_precondition.py` — calendar-based scheduling (dry_run: true); uses `tesla_precondition/persist.py` for file I/O
 
 **Reload without restart:** `hass.services.call("pyscript", "reload")` or via HA Developer Tools → Services.
+
+
+## Stonebridge dashboard (custom cards)
+
+Source in `www/stonebridge/`, dashboard in `dashboards/stonebridge.yaml`. After editing card
+code run `node tools/stonebridge-build.mjs` and commit `dist/`; `node --test tests/stonebridge/`
+fails if the bundle is stale.
+
+- **The cards load as a dashboard resource, not from `configuration.yaml`:**
+  `/local/stonebridge/loader.js?v=3`, type JavaScript module, under Settings > Dashboards >
+  Resources. That list lives in `.storage/lovelace_resources`, which is not in git.
+  `extra_module_url` was dropped on 2026-11-10: it is baked into HA's start page, and phones
+  (HTTPS, so HA's service worker is active) kept a cached start page from before it was added,
+  so the cards showed a bare "Configuration error" there.
+- **Card updates need no restart.** The loader fetches `dist/version.json` under a unique URL
+  and imports the bundle by its hash. A device picks the new bundle up on its next real page
+  load; in the Android app that means force-stopping it, since the dashboard menu's Refresh
+  only re-reads the YAML.
+- **If `loader.js` itself changes, bump `?v=` on the resource URL.** Devices cache that file
+  for 31 days.
+- **Rooms come from Home Assistant areas.** `floorplan.js` maps each room to an area id; give
+  a device an area in HA and it appears on the plan. The House view lists devices with no room.
+- **The cards log to HA** under logger `stonebridge`: one line per device per bundle version,
+  plus any errors. Check there first when a device misbehaves.
