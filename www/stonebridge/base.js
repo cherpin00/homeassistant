@@ -137,6 +137,16 @@ export class SbCard extends HTMLElement {
     const t = times && cam ? times[cam] : null;
     return t ? Math.max(0, (Date.now() / 1000 - t) / 60) : null;
   }
+  // The HA area an entity is in: its own, or else its device's.
+  areaOf(id) {
+    const e = id && this._hass?.entities?.[id];
+    return e ? e.area_id ?? this._hass.devices?.[e.device_id]?.area_id ?? null : null;
+  }
+  // HA's own navigate(): push the path, then tell the router.
+  navigate(path) {
+    history.pushState(null, "", path);
+    window.dispatchEvent(new CustomEvent("location-changed"));
+  }
   name(id, fallback) { return fallback ?? this.attr(id, "friendly_name") ?? id; }
 
   call(domain, service, data) { return this._hass.callService(domain, service, data); }

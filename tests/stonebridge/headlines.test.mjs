@@ -118,7 +118,20 @@ test("bill", () => {
 test("lights", () => {
   assert.equal(h.lightsHeadline([{ name: "Kitchen", on: false }]).text, "All lights are off.");
   assert.equal(h.lightsHeadline([{ name: "Kitchen", on: true }]).text, "1 light on: Kitchen.");
-  assert.equal(h.lightsHeadline([{ name: "A", floor: "Downstairs", on: true }, { name: "B", floor: "Downstairs", on: true }]).text, "2 lights on, all downstairs.");
-  assert.equal(h.lightsHeadline([{ name: "A", floor: "Downstairs", on: true }, { name: "B", floor: "Upstairs", on: true }]).text, "2 lights on, upstairs and down.");
+  assert.equal(h.lightsHeadline([{ name: "A", floor: "Bedrooms", on: true }, { name: "B", floor: "Bedrooms", on: true }]).text, "2 lights on, all bedrooms.");
+  const two = h.lightsHeadline([{ name: "A", floor: "Living areas", on: true }, { name: "B", floor: "Bedrooms", on: true }]);
+  assert.equal(two.text, "2 lights on.");
+  assert.equal(two.sub, "A, B.");
+  assert.equal(h.lightsHeadline(Array.from({ length: 5 }, (_, i) => ({ name: `L${i}`, on: true }))).sub, null);
   assert.equal(h.lightsHeadline([{ name: "A", on: null }]).text, "All lights are off.");
+});
+
+test("house", () => {
+  assert.equal(h.houseHeadline({ total: 0, unplaced: 0, dead: 0 }).text, "No devices found.");
+  assert.equal(h.houseHeadline({ total: 30, unplaced: 1, dead: 0 }).text, "1 device has no room yet.");
+  const r = h.houseHeadline({ total: 30, unplaced: 9, dead: 2 });
+  assert.equal(r.text, "9 devices have no room yet.");
+  assert.equal(r.sub, "21 of 30 devices placed. 2 not responding.");
+  assert.equal(h.houseHeadline({ total: 30, unplaced: 0, dead: 1 }).text, "1 device is not responding.");
+  assert.equal(h.houseHeadline({ total: 30, unplaced: 0, dead: 0 }).tone, "ok");
 });

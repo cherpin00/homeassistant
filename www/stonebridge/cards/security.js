@@ -3,7 +3,7 @@ import { securityHeadline, relTime } from "../headlines.js";
 import { floorplan, planSpot } from "../floorplan.js";
 
 // type: custom:stonebridge-security
-// config: alarm, lock, lock_jammed, garage, garage_close_script, garage_remotes,
+// config: alarm, alarm_name?, lock, lock_jammed, garage, garage_close_script, garage_remotes,
 //   cameras_person: [{entity, camera, name, spot?, at?}],
 //   openings: [{entity, name, spot?, at?}] (optional)
 // Cameras and openings with a `spot` (see floorplan.js) or `at: [x, y]` are
@@ -63,7 +63,7 @@ class StonebridgeSecurity extends SbCard {
         <div style="display:flex;align-items:center;gap:10px;--mdc-icon-size:26px" class="${alarm === "triggered" || armed ? "tone-alert" : "tone-info"}">
           ${icon(armed ? "mdi:shield-lock" : "mdi:shield-off-outline")}
           <span style="font-size:22px;font-weight:600;color:var(--sb-text)">${alarmLabel}</span>
-          <span class="sub">Alarmo</span>
+          <span class="sub">${esc(c.alarm_name ?? "Alarm panel")}</span>
         </div>
         ${floorplan({ markers, cls: armed ? "armed" : "" })}
         <div class="headline" style="font-size:21px">${esc(head.text)}</div>

@@ -61,10 +61,7 @@ class StonebridgeHome extends SbCard {
     const c = this.config;
     const map = { alarm: c.alarm, lock: c.lock, garage: c.garage, vacuum: c.vacuum, people: c.people?.[0]?.entity };
     if (action === "lights") {
-      // HA's own navigate(): push the path, then tell the router.
-      history.pushState(null, "", c.lights_path ?? "/stonebridge-home/lights");
-      window.dispatchEvent(new CustomEvent("location-changed"));
-      return;
+      return this.navigate(c.lights_path ?? "/stonebridge-home/lights");
     }
     if (map[action]) this.moreInfo(map[action]);
   }
