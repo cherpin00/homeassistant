@@ -3,11 +3,11 @@ default_config:
 
 frontend:
   themes: !include_dir_merge_named themes
-  # Stonebridge dashboard cards. loader.js fetches the current bundle version
-  # itself, so card updates need no restart. Devices cache loader.js for 31
-  # days: if loader.js itself changes, bump ?v= here and restart HA.
-  extra_module_url:
-    - /local/stonebridge/loader.js?v=2
+  # The Stonebridge dashboard cards are NOT loaded from here. They are a
+  # dashboard resource (Settings > Dashboards > Resources):
+  #   /local/stonebridge/loader.js?v=3   (JavaScript module)
+  # extra_module_url is baked into the start page, which phones keep a stale
+  # cached copy of; the resource list is fetched live. See CLAUDE.md.
 
 group: !include groups.yaml
 input_number: !include input_numbers.yaml
