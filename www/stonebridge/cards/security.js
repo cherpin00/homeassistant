@@ -1,9 +1,13 @@
 import { SbCard, esc, icon } from "../base.js";
 import { securityHeadline, relTime } from "../headlines.js";
+import { floorplan, planSpot } from "../floorplan.js";
 
 // type: custom:stonebridge-security
 // config: alarm, lock, lock_jammed, garage, garage_close_script, garage_remotes,
-//   cameras_person: [{entity, name}], openings: [{entity, name}] (optional)
+//   cameras_person: [{entity, camera, name, spot?, at?}],
+//   openings: [{entity, name, spot?, at?}] (optional)
+// Cameras and openings with a `spot` (see floorplan.js) or `at: [x, y]` are
+// drawn on the floor plan, along with the front door lock and the garage door.
 class StonebridgeSecurity extends SbCard {
   static sensitive = ["disarm", "unlock", "garage_open"];
 
@@ -17,7 +21,7 @@ class StonebridgeSecurity extends SbCard {
     let best = null;
     for (const p of this.config.cameras_person ?? []) {
       if (this.on(p.entity)) return { camera: `the ${p.name.toLowerCase()} camera`, minutes: 0, now: true };
-      const m = this.minutesSince(p.entity);
+      const m = p.camera ? this.minutesSincePerson(p.camera) : null;
       if (m != null && (!best || m < best.minutes)) best = { camera: `the ${p.name.toLowerCase()} camera`, minutes: m };
     }
     return best;
@@ -31,32 +35,37 @@ class StonebridgeSecurity extends SbCard {
     const last = this.lastPerson();
     const head = securityHeadline({ alarm, lock, jammed, garage, lastPerson: last, openings });
     const remotes = this.st(c.garage_remotes);
-    const col = (ok) => (ok == null ? "#6b7486" : ok ? "#5fd4bf" : "#f2b45a");
-    const personCol = last?.now ? "#e86a6a" : last && last.minutes < 30 ? "#9fb3d8" : "#5fd4bf";
     const alarmLabel = { disarmed: "Disarmed", armed_home: "Armed home", armed_away: "Armed away", armed_night: "Armed night", triggered: "TRIGGERED", pending: "Pending", arming: "Arming" }[alarm] ?? "—";
-    const alarmChanged = relTime(this.minutesSince(c.alarm));
-    const openCount = openings.filter((o) => o.open).length;
+    const armed = alarm && alarm !== "disarmed";
+    const tone = (ok) => (ok == null ? "" : ok ? "ok" : "warn");
 
-    const node = (x, y, colr, ic, label, labelY = y + 36) => `
-      <circle cx="${x}" cy="${y}" r="20" fill="#132042" stroke="${colr}" stroke-width="2"/>
-      <foreignObject x="${x - 12}" y="${y - 12}" width="24" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="color:${colr};display:grid;place-items:center;height:24px">${icon(ic)}</div></foreignObject>
-      <text x="${x}" y="${labelY}" fill="${colr === "#5fd4bf" ? "#9aa4b5" : colr}" font-size="12" text-anchor="middle">${esc(label)}</text>`;
+    const markers = [
+      { at: planSpot({ spot: "front_door" }), icon: lock === "unlocked" ? "mdi:lock-open-variant" : "mdi:lock",
+        cls: jammed ? "alert" : tone(lock == null ? null : lock === "locked"), label: jammed ? "Jammed" : lock === "unlocked" ? "Unlocked" : null },
+      { at: planSpot({ spot: "garage_door" }), icon: garage === "closed" ? "mdi:garage" : "mdi:garage-open",
+        cls: tone(garage == null ? null : garage === "closed"), label: garage && garage !== "closed" ? cap(garage) : null },
+      ...(c.cameras_person ?? []).map((p) => {
+        const now = this.on(p.entity);
+        const m = now ? 0 : p.camera ? this.minutesSincePerson(p.camera) : null;
+        const recent = m != null && m < 30;
+        return { at: planSpot(p), icon: "mdi:cctv", cls: now ? "alert" : recent ? "info" : now == null ? "" : "ok",
+          label: now ? "Person" : recent ? relTime(m) : null, action: p.camera ? `info:${p.camera}` : null };
+      }),
+      ...(c.openings ?? []).map((o) => {
+        const v = this.on(o.entity);
+        return { at: planSpot(o), icon: v ? "mdi:door-open" : "mdi:door-closed", cls: tone(v == null ? null : !v), label: v ? "Open" : null };
+      }),
+    ];
 
     return `
     <div class="stack">
       <div class="card navy">
-        <svg viewBox="0 0 320 250" width="100%" style="--mdc-icon-size:16px">
-          <circle cx="160" cy="125" r="100" fill="none" stroke="#2f4470" stroke-dasharray="2 8"/>
-          <circle cx="160" cy="118" r="58" fill="#132042" stroke="${alarm === "triggered" ? "#e86a6a" : alarm && alarm !== "disarmed" ? "#e86a6a88" : "#30477a"}" stroke-width="${alarm && alarm !== "disarmed" ? 3 : 1}"/>
-          <path d="M160 84 l28 11 v22 c0 21 -13 34 -28 40 c-15 -6 -28 -19 -28 -40 v-22z" fill="#1a2b52" stroke="#9fb3d8" stroke-width="2"/>
-          <text x="160" y="204" text-anchor="middle" fill="#e9edf3" font-size="22" font-weight="600">${alarmLabel}</text>
-          <text x="160" y="224" text-anchor="middle" fill="#9aa4b5" font-size="12">Alarmo${alarmChanged ? ` · ${alarmChanged}` : ""}</text>
-          ${node(160, 26, col(lock == null ? null : lock === "locked" && !jammed), "mdi:lock", jammed ? "Jammed" : lock === "unlocked" ? "Unlocked" : "Front lock", 62)}
-          ${node(268, 96, col(garage == null ? null : garage === "closed"), "mdi:garage", garage === "closed" ? "Garage" : "Garage open")}
-          ${node(268, 186, personCol, "mdi:cctv", last?.now ? "Person now" : last && last.minutes < 30 ? relTime(last.minutes) : "Cameras")}
-          ${node(52, 96, col(remotes == null ? null : true), "mdi:remote", remotes === "locked" ? "Remotes off" : "Remotes")}
-          ${node(52, 186, c.openings?.length ? col(!openCount) : "#6b7486", "mdi:window-closed-variant", c.openings?.length ? (openCount ? `${openCount} open` : "Shut") : "No sensors")}
-        </svg>
+        <div style="display:flex;align-items:center;gap:10px;--mdc-icon-size:26px" class="${alarm === "triggered" || armed ? "tone-alert" : "tone-info"}">
+          ${icon(armed ? "mdi:shield-lock" : "mdi:shield-off-outline")}
+          <span style="font-size:22px;font-weight:600;color:var(--sb-text)">${alarmLabel}</span>
+          <span class="sub">Alarmo</span>
+        </div>
+        ${floorplan({ markers, cls: armed ? "armed" : "" })}
         <div class="headline" style="font-size:21px">${esc(head.text)}</div>
         ${head.sub ? `<div class="sub">${esc(head.sub)}</div>` : ""}
       </div>
@@ -89,6 +98,7 @@ class StonebridgeSecurity extends SbCard {
 
   handle(action) {
     const c = this.config;
+    if (action.startsWith("info:")) return this.moreInfo(action.slice(5));
     switch (action) {
       case "arm_home": return this.call("alarm_control_panel", "alarm_arm_home", { entity_id: c.alarm });
       case "arm_away": return this.call("alarm_control_panel", "alarm_arm_away", { entity_id: c.alarm });
