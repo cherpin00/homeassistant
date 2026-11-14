@@ -226,6 +226,33 @@ without reading why:
   no Frigate event id. Only a *clip* link needs the event id the MQTT payload
   carries, which is the one capability lost in the retirement.
 
+## Voice: Iris and OpenClaw
+
+Iris is the Claude conversation agent (`conversation.claude_conversation`). Two
+pipelines use it: **Iris** (phone; Google STT, Piper TTS) and **Iris (local
+voice)** (Kitchen Voice PE, `assist_satellite.kitchen_voice`; Whisper + Piper).
+Both have "prefer local intents" on, so plain device commands never reach Claude.
+
+Requests Iris can't handle go to OpenClaw through `script.ask_openclaw` →
+`script.openclaw_job` → `rest_command.openclaw_chat`. The comment above
+`ask_openclaw` in `scripts.yaml` is the design; the facts that cost time:
+
+- **Answers under ~20 s come back inline; slower ones are delivered later** —
+  `start_conversation` on the satellite in the asker's area (Iris fills `area`
+  from its own context), else a push to `caleb` on the **Assistant** channel.
+- **Cancel = stop `script.openclaw_job`, and it stops *every* in-flight
+  request.** HA drops the answer at once; OpenClaw only aborts ~30 s later (TLS
+  shutdown delay before nginx sees the disconnect). Sending OpenClaw "/stop" or
+  "stop" over HTTP does nothing until the run ends. Don't test cancel while
+  someone is using voice — a test cancel killed a real request on 2026-11-13.
+- **Expose `ask_openclaw` and `cancel_openclaw` to Assist, never
+  `openclaw_job`.** Exposure is not in git; set it with the websocket
+  `homeassistant/expose_entity`.
+- **Keep the Anthropic integration's "Tool search" off.** It hides Assist tools
+  behind a search tool and Iris stops finding `ask_openclaw`.
+- All voice requests share one OpenClaw session (`user: ha-voice`), so a quick
+  question waits behind a long job.
+
 ## Working With This Repo
 
 ### Deploy loop
