@@ -436,10 +436,16 @@ garage_close_safely:
 # waits up to `inline_seconds` for it. A quick answer comes straight back to
 # Iris. A slow one returns `still_working`, Iris says so, and openclaw_job
 # delivers the answer itself when it lands: spoken on the satellite in the
-# asker's area, otherwise a push to Caleb's phone. cancel_openclaw stops
-# openclaw_job, which closes its HTTP request, and OpenClaw aborts a run whose
-# client disconnects (tested 2026-11-13). A follow-up *message* such as "/stop"
-# does NOT abort: over the HTTP API it queues until the run finishes.
+# asker's area, otherwise a push to Caleb's phone.
+#
+# Cancelling (tested 2026-11-13): cancel_openclaw stops openclaw_job, so HA
+# drops the answer at once. OpenClaw aborts a run whose client disconnects, but
+# the disconnect reaches it ~30 s late: HA closes the HTTPS connection with a
+# TLS shutdown that waits out a 30 s timeout before nginx sees the close (both
+# cancelled requests logged 499 exactly 30 s after the cancel). A run that
+# finishes inside that window still completes. A follow-up *message* such as
+# "/stop" does NOT abort at all: over the HTTP API it queues behind the run.
+# Stopping openclaw_job stops EVERY in-flight request, not just the latest.
 ask_openclaw:
   alias: Ask OpenClaw
   description: >-
@@ -557,22 +563,31 @@ openclaw_job:
             reply: "{{ reply }}"
         - stop: Answered inline
 
-    - action: ai_task.generate_data
-      data:
-        entity_id: ai_task.claude_ai_task
-        task_name: OpenClaw voice summary
-        instructions: >-
-          Rewrite this answer from Caleb's AI agent OpenClaw as one or two short
-          spoken sentences, under 40 words. Plain text only: no markdown, no
-          lists, no preamble.
+    # Declared here so the response_variable set inside the `if` below updates
+    # this outer variable rather than one scoped to the branch.
+    - variables:
+        summary: {}
+    - alias: Shorten for speech, unless it is already short
+      if:
+        - condition: template
+          value_template: "{{ reply.split() | count > 40 }}"
+      then:
+        - action: ai_task.generate_data
+          data:
+            entity_id: ai_task.claude_ai_task
+            task_name: OpenClaw voice summary
+            instructions: >-
+              Rewrite this answer from Caleb's AI agent OpenClaw as one or two
+              short spoken sentences, under 40 words. Plain text only: no
+              markdown, no lists, no preamble.
 
 
-          {{ reply }}
-      response_variable: summary
-      continue_on_error: true
+              {{ reply }}
+          response_variable: summary
+          continue_on_error: true
     - variables:
         short: >-
-          {{ summary.data if summary is defined and summary.data else reply | truncate(300) }}
+          {{ summary.data if summary.data is defined and summary.data else reply | truncate(300) }}
         satellites: >-
           {{ (area_entities(area) | select('match', 'assist_satellite\.') | list)
              if area | default('', true) else [] }}
@@ -614,9 +629,11 @@ cancel_openclaw:
   alias: Cancel OpenClaw
   description: >-
     Abort whatever OpenClaw is still working on from a voice request, when Caleb
-    says "never mind", "cancel that", or "stop the OpenClaw thing". Its answer
-    will not be delivered. Anything OpenClaw already did (an email it already
-    sent) is not undone; say so if it matters.
+    says "never mind", "cancel that", or "stop the OpenClaw thing". It cancels
+    every OpenClaw request in progress. Its answer will not be delivered, and
+    OpenClaw itself stops within about 30 seconds, so a step it was about to
+    finish may still happen, and nothing it already did (an email already sent)
+    is undone. Say so briefly if it matters.
   mode: single
   sequence:
     - variables:
