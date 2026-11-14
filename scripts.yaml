@@ -128,6 +128,7 @@ notify:
             - doors
             - vehicle
             - dev
+            - assistant
             - general
     title:
       name: Title
@@ -246,6 +247,7 @@ notify:
           doors: Doors & Locks
           vehicle: Vehicle
           dev: Dev
+          assistant: Assistant
           general: General
 
     - variables:
@@ -429,15 +431,28 @@ garage_close_safely:
               Door did not reach closed within 30s
               ({{ reason | default('requested', true) }}). Currently:
               {{ states('cover.ratgdo32disco_f9898c_door') }}.
+# --- Voice: Iris -> OpenClaw -------------------------------------------------
+# ask_openclaw (exposed to Assist) starts openclaw_job in the background and
+# waits up to `inline_seconds` for it. A quick answer comes straight back to
+# Iris. A slow one returns `still_working`, Iris says so, and openclaw_job
+# delivers the answer itself when it lands: spoken on the satellite in the
+# asker's area, otherwise a push to Caleb's phone. cancel_openclaw stops
+# openclaw_job, which closes its HTTP request, and OpenClaw aborts a run whose
+# client disconnects (tested 2026-11-13). A follow-up *message* such as "/stop"
+# does NOT abort: over the HTTP API it queues until the run finishes.
 ask_openclaw:
   alias: Ask OpenClaw
   description: >-
-    Ask OpenClaw, Caleb's personal AI agent, and get its answer back. Use it for
-    anything Home Assistant cannot do itself: Caleb's email, calendar and Google
-    tasks; the homelab (Kubernetes, services, git, pull requests); web lookups.
-    It remembers earlier voice requests, so follow-ups like "what did you find
-    earlier" work. Pass Caleb's request in full. The reply may be long; summarize
-    it in a sentence or two for speech.
+    Ask OpenClaw, Caleb's personal AI agent. Use it for anything Home Assistant
+    cannot do itself: Caleb's email, calendar and Google tasks; the homelab
+    (Kubernetes, services, git, pull requests); web lookups. Pass Caleb's
+    request in full. It returns one of two shapes. `reply`: OpenClaw answered
+    quickly; summarize it in a sentence or two for speech. `status:
+    still_working`: OpenClaw needs longer; tell Caleb in one short sentence that
+    you've asked OpenClaw and it will tell him when it's done (`delivery` says
+    where), and do not guess at the answer. OpenClaw remembers earlier voice
+    requests, so send follow-ups about an earlier OpenClaw answer ("what did it
+    find", "reply to that email") back to OpenClaw.
   mode: parallel
   fields:
     message:
@@ -447,14 +462,174 @@ ask_openclaw:
       selector:
         text:
           multiline: true
+    area:
+      name: Area
+      description: >-
+        The area the user is speaking from, exactly as your context names it
+        (for example Kitchen). Leave empty if your context names no area.
+      required: false
+      selector:
+        area:
+  sequence:
+    - variables:
+        job_id: "{{ context.id }}"
+        inline_seconds: 20
+        satellites: >-
+          {{ (area_entities(area) | select('match', 'assist_satellite\.') | list)
+             if area | default('', true) else [] }}
+    - action: script.turn_on
+      target:
+        entity_id: script.openclaw_job
+      data:
+        variables:
+          message: "{{ message }}"
+          area: "{{ area | default('', true) }}"
+          job_id: "{{ job_id }}"
+          inline_until: "{{ now().timestamp() + inline_seconds }}"
+    # Waits 3 s past the job's inline deadline, so an answer that lands just
+    # before the deadline is never both returned here and delivered later.
+    - wait_for_trigger:
+        - trigger: event
+          event_type: openclaw_job_done
+          event_data:
+            job_id: "{{ job_id }}"
+      timeout:
+        seconds: "{{ inline_seconds + 3 }}"
+      continue_on_timeout: true
+    - variables:
+        result: >-
+          {% if wait.trigger %}
+            {{ {'reply': wait.trigger.event.data.reply} }}
+          {% else %}
+            {{ {'status': 'still_working',
+                'delivery': ('announced on the ' ~ area_name(satellites[0]) ~ ' speaker')
+                            if satellites else "sent to Caleb's phone"} }}
+          {% endif %}
+    - stop: OpenClaw request handled
+      response_variable: result
+
+openclaw_job:
+  alias: OpenClaw job (background)
+  description: >-
+    One ask_openclaw request, run in the background. Not exposed to Assist.
+    Stopping it aborts the OpenClaw run (see the comment above ask_openclaw).
+  mode: parallel
+  max: 10
+  fields:
+    message:
+      required: true
+      selector:
+        text:
+    area:
+      selector:
+        text:
+    job_id:
+      required: true
+      selector:
+        text:
+    inline_until:
+      description: Unix time. Finishing before it hands the answer back to ask_openclaw.
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 9999999999
   sequence:
     - action: rest_command.openclaw_chat
       data:
         message: "{{ message }}"
       response_variable: openclaw
+      continue_on_error: true
+    - variables:
+        reply: >-
+          {% if openclaw is defined and openclaw.status == 200 %}{{ openclaw.content.choices[0].message.content }}
+          {%- elif openclaw is defined %}OpenClaw failed with HTTP {{ openclaw.status }}.
+          {%- else %}OpenClaw did not answer: the request failed or timed out.{% endif %}
+
+    - alias: Quick answer — hand it back to the waiting ask_openclaw
+      if:
+        - condition: template
+          value_template: "{{ now().timestamp() < inline_until | float(0) }}"
+      then:
+        - event: openclaw_job_done
+          event_data:
+            job_id: "{{ job_id }}"
+            reply: "{{ reply }}"
+        - stop: Answered inline
+
+    - action: ai_task.generate_data
+      data:
+        entity_id: ai_task.claude_ai_task
+        task_name: OpenClaw voice summary
+        instructions: >-
+          Rewrite this answer from Caleb's AI agent OpenClaw as one or two short
+          spoken sentences, under 40 words. Plain text only: no markdown, no
+          lists, no preamble.
+
+
+          {{ reply }}
+      response_variable: summary
+      continue_on_error: true
+    - variables:
+        short: >-
+          {{ summary.data if summary is defined and summary.data else reply | truncate(300) }}
+        satellites: >-
+          {{ (area_entities(area) | select('match', 'assist_satellite\.') | list)
+             if area | default('', true) else [] }}
+
+    - alias: Deliver — speak in the asker's room, else push to the phone
+      if:
+        - condition: template
+          value_template: "{{ satellites | count > 0 }}"
+      then:
+        # start_conversation, not announce: it reopens the mic afterwards, and
+        # extra_system_prompt gives Iris the full answer for follow-ups.
+        - action: assist_satellite.start_conversation
+          target:
+            entity_id: "{{ satellites[0] }}"
+          data:
+            start_message: "OpenClaw finished. {{ short }}"
+            extra_system_prompt: >-
+              You just told Caleb this result from OpenClaw, his AI agent:
+              "{{ short }}". OpenClaw's full answer was:
+
+              {{ reply }}
+
+              Answer follow-up questions from it. For anything it does not
+              cover, use ask_openclaw.
+            preannounce: true
+      else:
+        - action: script.notify
+          data:
+            audience: caleb
+            category: assistant
+            tag_suffix: openclaw
+            title: OpenClaw
+            message: "{{ short }}"
+            push_data:
+              # Tapping opens Assist (the phone's default assistant is HA).
+              clickAction: "intent:#Intent;action=android.intent.action.ASSIST;end"
+
+cancel_openclaw:
+  alias: Cancel OpenClaw
+  description: >-
+    Abort whatever OpenClaw is still working on from a voice request, when Caleb
+    says "never mind", "cancel that", or "stop the OpenClaw thing". Its answer
+    will not be delivered. Anything OpenClaw already did (an email it already
+    sent) is not undone; say so if it matters.
+  mode: single
+  sequence:
+    - variables:
+        was_running: "{{ is_state('script.openclaw_job', 'on') }}"
+    - if:
+        - condition: template
+          value_template: "{{ was_running }}"
+      then:
+        - action: script.turn_off
+          target:
+            entity_id: script.openclaw_job
     - variables:
         result:
-          reply: >-
-            {% if openclaw.status == 200 %}{{ openclaw.content.choices[0].message.content }}{% else %}OpenClaw returned HTTP {{ openclaw.status }}.{% endif %}
-    - stop: OpenClaw replied
+          cancelled: "{{ was_running }}"
+    - stop: Cancel handled
       response_variable: result
