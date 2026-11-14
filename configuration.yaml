@@ -96,7 +96,9 @@ rest_command:
   openclaw_chat:
     url: https://openclaw.stone.herpin.xyz/v1/chat/completions
     method: POST
-    timeout: 60
+    # Long on purpose: script.openclaw_job runs this in the background, and
+    # cancel_openclaw aborts it by stopping that script, not by timing out.
+    timeout: 900
     headers:
       Authorization: !secret openclaw_gateway_auth
     content_type: application/json
