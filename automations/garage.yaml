@@ -149,6 +149,17 @@
       entity_id: sensor.home_location_distance
       below: input_number.garage_approach_distance_ft
   conditions:
+    # Only a real crossing counts: the previous reading must have been a
+    # number. numeric_state also fires on unknown/unavailable -> below, which
+    # is just the Tesla integration recovering from an API dropout and
+    # re-reporting the car's last cached fix. On 2026-11-16 that reopened the
+    # door at 11:35 with the car parked inside: the last fix was the 650 ft
+    # reading from the previous night's arrival. No native condition can test
+    # the trigger's from_state, hence the template.
+    - condition: template
+      value_template: >-
+        {{ trigger.from_state is not none
+           and is_number(trigger.from_state.state) }}
     - condition: state
       entity_id: input_boolean.garage_auto_open_enabled
       state: "on"
@@ -180,6 +191,29 @@
         tag_suffix: auto_open
         title: Garage Opening
         message: Welcome home — opening the garage.
+    # Approach polling stops at the radius, and the car usually sleeps before
+    # the integration's own 10-minute poll, so without this the last fix left
+    # behind is "650 ft out, not home" — all night. That stale fix is what the
+    # 2026-11-16 false open re-read, and it also blinds auto-close and the
+    # trunk lockout, which both need the car to read "home" when parked.
+    # Refresh until the car lands in zone.home (or 5 minutes pass).
+    - alias: Settle the car's location to "home" once it has pulled in
+      repeat:
+        sequence:
+          - delay:
+              seconds: 30
+          - action: homeassistant.update_entity
+            target:
+              entity_id: device_tracker.caleb_s_model_y_location
+            continue_on_error: true
+        until:
+          - condition: or
+            conditions:
+              - condition: state
+                entity_id: device_tracker.caleb_s_model_y_location
+                state: home
+              - condition: template
+                value_template: "{{ repeat.index >= 10 }}"
     # Hold the run open so mode:single drops re-triggers for the cooldown
     # window. Same trick as security_alert_cooldown_minutes in alarm_system.yaml.
     - alias: Cooldown — absorb GPS flapping around the threshold
