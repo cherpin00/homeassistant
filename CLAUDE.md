@@ -136,9 +136,23 @@ Proximity was created via its **config flow**, not YAML, so it needs no restart
 and is not in this repo. Recreate it with
 `POST /api/config/config_entries/flow` handler `proximity` if it is ever lost.
 
-**Guards on auto-open** (all must pass): enable toggle, door closed,
-`_vehicle_detected` off, and the car's location not already `home` — a slow poll
-that first sees it inside the zone means it has sat on the driveway for minutes.
+**Guards on auto-open** (all must pass): the distance was a number before the
+crossing, enable toggle, door closed, `_vehicle_detected` off, and the car's
+location not already `home` — a slow poll that first sees it inside the zone
+means it has sat on the driveway for minutes.
+
+**`numeric_state` fires on `unknown`/`unavailable` → below.** A Tesla API
+dropout followed by recovery re-reports the car's last cached fix, and if that
+fix is inside the radius it looks like an arrival. On 2026-11-16 this opened the
+door at 11:35 with the car parked inside, off a 650 ft fix left over from the
+previous night. Hence the first guard.
+
+**After opening, auto-open settles the car to `home`.** It refreshes the
+location every 30 s (up to 5 min) until the car is in `zone.home`. Without it,
+approach polling stops at the radius, the car falls asleep before the next
+10-minute poll, and its last fix stays "650 ft out, `not_home`" until the next
+drive. That stale fix armed the 2026-11-16 false open, and it would also stop
+auto-close and the trunk lockout, which both need the parked car to read `home`.
 
 **Safety**: every guard is advisory. The real protection is the opener's
 photo-eye beam, surfaced as `_obstruction`, which `script.garage_close_safely`
